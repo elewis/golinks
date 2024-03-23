@@ -1,0 +1,17 @@
+{
+    "name": "GoLinks",
+    "version": "0.1",
+    "manifest_version": 3,
+    "background": {
+      "service_worker": "background.js"
+    },
+    "permissions": [
+      "declarativeNetRequest",
+      "declarativeNetRequestFeedback",
+      "declarativeNetRequestWithHostAccess"
+    ],
+    "host_permissions": [
+        "http://go/",
+        "https://go/"
+    ]
+}
