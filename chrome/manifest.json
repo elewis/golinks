@@ -1,15 +1,16 @@
 {
-    "name": "GoLinks",
-    "version": "0.1",
-    "manifest_version": 3,
-    "background": {
-      "service_worker": "background.js"
-    },
-    "permissions": [
-      "declarativeNetRequestWithHostAccess"
-    ],
-    "host_permissions": [
-        "http://go/",
-        "https://go/"
-    ]
+  "name": "GoLinks",
+  "version": "0.1",
+  "description": "In-browser implementation of go/ links (example: go/github).",
+  "manifest_version": 3,
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": [
+    "http://go/",
+    "https://go/"
+  ]
 }

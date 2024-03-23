@@ -1,6 +1,7 @@
 "use strict";
 
 const links = {
+  "github": "https://github.com",
   "gh": "https://github.com",
   "gg": "https://google.com",
   "yt": "https://youtube.com",
