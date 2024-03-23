@@ -1,31 +1,53 @@
-'use strict';
+"use strict";
 
 const links = [
-    ['gh', 'https://github.com'],
-    ['gg', 'https://google.com'],
-    ['yt', 'https://youtube.com'],
-    ['gmail', 'https://mail.google.com'],
-    ['gcal', 'https://calendar.google.com'],
+  ["gh", "https://github.com"],
+  ["gg", "https://google.com"],
+  ["yt", "https://youtube.com"],
+  ["gmail", "https://mail.google.com"],
+  ["gcal", "https://calendar.google.com"],
 ];
 
-console.debug('Service worker started.');
+(async () => {
+  const new_rules = links.map(([golink, destination]) => {
+    return {
+      priority: 5,
+      action: {
+        type: "redirect",
+        redirect: { url: destination },
+      },
+      condition: {
+        urlFilter: "*://go/" + golink,
+        resourceTypes: ["main_frame"],
+      },
+    };
+  });
 
-links.forEach(([golink, destination], index) => {
-    const id = index + 1;
-    const url = "http://go/"+golink;
-    console.debug(`Service worker, adding rule ${id}: ${url} ${destination}`)
+  // Redirect any non-matching links to static 404 page
+  new_rules.push({
+    priority: 1,
+    action: {
+      type: "redirect",
+      redirect: { extensionPath: "/notfound.html" },
+    },
+    condition: {
+      urlFilter: "*://go/*",
+      resourceTypes: ["main_frame"],
+    },
+  });
 
-    chrome.declarativeNetRequest.updateDynamicRules({
-        addRules: [{
-            "id": id,
-            "priority": 1,
-            "action": { "type": "redirect", "redirect": { "url": destination } },
-            "condition": { "urlFilter": "http://go/"+golink, "resourceTypes": ["main_frame"] }
-        }],
-        removeRuleIds: [id]
-    });
-})
+  const old_rules = await chrome.declarativeNetRequest.getDynamicRules();
+  const old_rule_ids = old_rules.map((rule) => rule.id);
 
-chrome.declarativeNetRequest.onRuleMatchedDebug.addListener((e) => {
-  console.debug(`Navigation to ${e.request.url} redirected on tab ${e.request.tabId}`);
-});
+  await chrome.declarativeNetRequest.updateDynamicRules({
+    removeRuleIds: old_rule_ids,
+    addRules: new_rules.map((rule, index) => ({ id: index+1, ...rule })),
+  });
+
+  // chrome.declarativeNetRequest.onRuleMatchedDebug.addListener((e) => {
+  //   console.debug(`Redirecting ${e.request.url} on tab ${e.request.tabId}`);
+  // });
+
+  console.debug("Service worker started");
+
+})();
