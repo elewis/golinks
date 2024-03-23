@@ -3,6 +3,7 @@
 const links = {
   "github": "https://github.com",
   "gh": "https://github.com",
+  "githubsearch": "https://github.com/search?q=%s",
   "gg": "https://google.com",
   "yt": "https://youtube.com",
   "mail": "https://mail.google.com",
@@ -11,19 +12,43 @@ const links = {
 };
 
 (async () => {
-  const new_rules = Object.entries(links).map(([golink, destination]) => {
-    return {
-      priority: 5,
-      action: {
-        type: "redirect",
-        redirect: { url: destination },
-      },
-      condition: {
-        urlFilter: "*://go/" + golink,
-        resourceTypes: ["main_frame"],
-      },
-    };
-  });
+  function get_rule(golink, destination) {
+    if (destination.includes("%s")) {
+      // Parameterized link
+      return {
+        priority: 5,
+        action: {
+          type: "redirect",
+          redirect: {
+            // Use regex match to pass the parameter value
+            //
+            // For example:
+            // - User inputs: https://github.com/search?q=%s
+            // - Chrome requires: https://github.com/search?q=\1
+            regexSubstitution: destination.replace("%s", "\\1"),
+          },
+        },
+        condition: {
+          regexFilter: "^https?://go/" + golink + "(?:/([^/]*))?",
+          resourceTypes: ["main_frame"],
+        },
+      };
+    } else {
+      return {
+        priority: 5,
+        action: {
+          type: "redirect",
+          redirect: { url: destination },
+        },
+        condition: {
+          urlFilter: `||go/${golink}`,
+          resourceTypes: ["main_frame"],
+        },
+      };
+    }
+  }
+
+  const new_rules = Object.entries(links).map(([golink, destination]) => get_rule(golink, destination));
 
   // Redirect any non-matching links to static 404 page
   new_rules.push({
@@ -33,7 +58,7 @@ const links = {
       redirect: { extensionPath: "/notfound.html" },
     },
     condition: {
-      urlFilter: "*://go/*",
+      urlFilter: "||go/*",
       resourceTypes: ["main_frame"],
     },
   });
