@@ -1,15 +1,16 @@
 "use strict";
 
-const links = [
-  ["gh", "https://github.com"],
-  ["gg", "https://google.com"],
-  ["yt", "https://youtube.com"],
-  ["gmail", "https://mail.google.com"],
-  ["gcal", "https://calendar.google.com"],
-];
+const links = {
+  "gh": "https://github.com",
+  "gg": "https://google.com",
+  "yt": "https://youtube.com",
+  "mail": "https://mail.google.com",
+  "gmail": "https://mail.google.com",
+  "gcal": "https://calendar.google.com",
+};
 
 (async () => {
-  const new_rules = links.map(([golink, destination]) => {
+  const new_rules = Object.entries(links).map(([golink, destination]) => {
     return {
       priority: 5,
       action: {
