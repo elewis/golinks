@@ -1,6 +1,6 @@
 {
   "name": "GoLinks",
-  "version": "0.1",
+  "version": "0.0.1",
   "description": "In-browser implementation of go/ links (example: go/github).",
   "manifest_version": 3,
   "background": {

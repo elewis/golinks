@@ -1,20 +1,13 @@
 "use strict";
 
-const links = {
-  "github": "https://github.com",
-  "gh": "https://github.com",
-  "githubsearch": "https://github.com/search?q=%s",
-  "gg": "https://google.com",
-  "yt": "https://youtube.com",
-  "mail": "https://mail.google.com",
-  "gmail": "https://mail.google.com",
-  "gcal": "https://calendar.google.com",
-};
+importScripts("links.js");
 
 (async () => {
+  const links = await getLinks();
+
   function get_rule(golink, destination) {
     if (destination.includes("%s")) {
-      // Parameterized link
+      // Redirect to link with user parameter
       return {
         priority: 5,
         action: {
@@ -34,6 +27,7 @@ const links = {
         },
       };
     } else {
+      // Redirect to static link
       return {
         priority: 5,
         action: {
@@ -41,7 +35,7 @@ const links = {
           redirect: { url: destination },
         },
         condition: {
-          urlFilter: `||go/${golink}`,
+          urlFilter: `||go/${golink}|`,
           resourceTypes: ["main_frame"],
         },
       };
@@ -49,6 +43,32 @@ const links = {
   }
 
   const new_rules = Object.entries(links).map(([golink, destination]) => get_rule(golink, destination));
+
+  // Redirect go/help to information page
+  new_rules.push({
+    priority: 2,
+    action: {
+      type: "redirect",
+      redirect: { extensionPath: "/index.html" },
+    },
+    condition: {
+      urlFilter: "||go/help|",
+      resourceTypes: ["main_frame"],
+    },
+  });
+
+  // Redirect bare go/ link to information page
+  new_rules.push({
+    priority: 2,
+    action: {
+      type: "redirect",
+      redirect: { extensionPath: "/index.html" },
+    },
+    condition: {
+      urlFilter: "||go/|",
+      resourceTypes: ["main_frame"],
+    },
+  });
 
   // Redirect any non-matching links to static 404 page
   new_rules.push({
