@@ -10,7 +10,7 @@ async function getLinks() {
   const defaultLinks = {
     "github": "https://github.com",
     "gh": "https://github.com",
-    "githubsearch": "https://github.com/search?q=%s",
+    "cs": "https://github.com/search?q=%s", // cs = code search
     "gg": "https://google.com",
     "yt": "https://youtube.com",
     "mail": "https://mail.google.com",
