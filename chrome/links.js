@@ -1,26 +1,29 @@
 async function getLinks() {
-  // Try to get links from storage first
-  const result = await chrome.storage.sync.get(['links']);
-  
-  if (result.links && Object.keys(result.links).length > 0) {
-    return result.links;
-  }
+  // Get both defaultLinks and localLinks from storage
+  const result = await chrome.storage.sync.get(["defaultLinks", "localLinks"]);
 
-  // Fallback to default links if storage is empty
   const defaultLinks = {
-    "github": "https://github.com",
-    "gh": "https://github.com",
-    "cs": "https://github.com/search?q=%s", // cs = code search
-    "gg": "https://google.com",
-    "yt": "https://youtube.com",
-    "mail": "https://mail.google.com",
-    "gmail": "https://mail.google.com",
-    "gcal": "https://calendar.google.com"
+    github: "https://github.com",
+    gh: "https://github.com",
+    cs: "https://github.com/search?q=%s", // cs = code search
+    gg: "https://google.com",
+    yt: "https://youtube.com",
+    mail: "https://mail.google.com",
+    gmail: "https://mail.google.com",
+    gcal: "https://calendar.google.com",
   };
 
-  console.debug('GoLinks: initializing with default links');
+  // Always update defaultLinks if different from current defaults
+  if (
+    !result.defaultLinks ||
+    JSON.stringify(result.defaultLinks) !== JSON.stringify(defaultLinks)
+  ) {
+    console.debug("GoLinks: updating default links");
+    await chrome.storage.sync.set({ defaultLinks });
+  }
 
-  // Initialize storage with default links
-  await chrome.storage.sync.set({ links: defaultLinks });
-  return defaultLinks;
+  const localLinks = result.localLinks || {};
+
+  // Merge links: localLinks override defaultLinks
+  return { ...defaultLinks, ...localLinks };
 }
