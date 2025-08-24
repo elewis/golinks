@@ -7,7 +7,6 @@ async function getLinks() {
   }
 
   // Fallback to default links if storage is empty
-  console.debug('GoLinks: initializing with default links');
   const defaultLinks = {
     "github": "https://github.com",
     "gh": "https://github.com",
@@ -18,6 +17,8 @@ async function getLinks() {
     "gmail": "https://mail.google.com",
     "gcal": "https://calendar.google.com"
   };
+
+  console.debug('GoLinks: initializing with default links');
 
   // Initialize storage with default links
   await chrome.storage.sync.set({ links: defaultLinks });
