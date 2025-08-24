@@ -118,15 +118,29 @@ async function updateRulesWithLinks(links) {
 browser.webRequest.onBeforeRequest.addListener(
   (details) => {
     const url = details.url;
-    
-    // Look for "go/" pattern in URL (encoded as go%2F or raw go/)
-    if (url.includes('go%2F') || url.includes('go/')) {
-      // Try to extract go link from search query
-      let match = url.match(/go%2F(\w+)/i) || url.match(/go\/(\w+)/i);
+
+    if (url.startsWith('https://go/')) {
+      return;
+    }
+
+    // Look for "go/" pattern in URL (url encoded)
+    if (url.includes('go%2F')) {
+      const match = url.match(/go%2F\w+(%2F\w+)?/i);
       if (match) {
-        const goLink = match[1];
-        const redirectUrl = `https://go/${goLink}`;
-        console.debug("GoLinks: intercepting search for:", goLink, "redirecting to:", redirectUrl);
+        const goLink = match[0];
+        const redirectUrl = `https://${decodeURIComponent(goLink)}`;
+        console.debug("GoLinks: intercepting search for ", goLink, ", redirecting to:", redirectUrl);
+        return { redirectUrl: redirectUrl };
+      }
+    }
+
+    // Look for "go/" pattern in URL (not url encoded)
+    if (url.includes('go/')) {
+      const match = url.match(/go\/\w+(\/\w+)?/i);
+      if (match) {
+        const goLink = match[0];
+        const redirectUrl = `https://${goLink}`;
+        console.debug("GoLinks: intercepting search for ", goLink, ", redirecting to:", redirectUrl);
         return { redirectUrl: redirectUrl };
       }
     }
