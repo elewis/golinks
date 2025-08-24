@@ -1,0 +1,25 @@
+{
+  "name": "GoLinks",
+  "version": "0.0.1",
+  "description": "In-browser implementation of go/ links (example: go/github).",
+  "manifest_version": 3,
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "golinks@ethanlew.is"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["links.js", "background.js"]
+  },
+  "permissions": [
+    "declarativeNetRequestWithHostAccess",
+    "storage",
+    "webRequest",
+    "webRequestBlocking"
+  ],
+  "host_permissions": [
+    "*://go/*",
+    "*://*/*"
+  ]
+}
