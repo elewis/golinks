@@ -4,16 +4,14 @@ importScripts("links.js");
 
 (async () => {
   const links = await getLinks();
-  console.log("Links: ", links);
-
   await updateRulesWithLinks(links);
-  console.debug("Service worker started");
+  console.debug("GoLinks: extension loaded");
 })();
 
 // Listen for storage changes and update rules
 chrome.storage.onChanged.addListener(async (changes, namespace) => {
   if (namespace === "sync" && changes.links) {
-    console.debug("Links updated, refreshing rules");
+    console.debug("GoLinks: links updated, refreshing rules");
     const links = changes.links.newValue;
     await updateRulesWithLinks(links);
   }
@@ -93,8 +91,6 @@ async function updateRulesWithLinks(links) {
 
   const old_rules = await chrome.declarativeNetRequest.getDynamicRules();
   const old_rule_ids = old_rules.map((rule) => rule.id);
-
-  console.log(new_rules);
 
   await chrome.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: old_rule_ids,
