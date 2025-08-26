@@ -64,6 +64,7 @@
 
     const addBtn = document.createElement("button");
     addBtn.textContent = "Add";
+    addBtn.type = "submit";
     addBtn.id = "add-btn";
     addCell.appendChild(addBtn);
 
@@ -72,19 +73,23 @@
     formRow.appendChild(addCell);
     table.appendChild(formRow);
 
-    document.getElementById("add-btn").addEventListener("click", async () => {
-      const linkName = document
-        .getElementById("link-name")
-        .value.trim()
-        .replace(/^go\//, "");
-      const linkUrl = document.getElementById("link-url").value.trim();
+    document
+      .getElementById("add-link-form")
+      .addEventListener("submit", async (e) => {
+        e.preventDefault();
 
-      if (linkName && linkUrl) {
-        const updatedLocalLinks = { ...links, [linkName]: linkUrl };
-        await chrome.storage.sync.set({ localLinks: updatedLocalLinks });
-        populateUserLinksWithForm(updatedLocalLinks);
-      }
-    });
+        const linkName = document
+          .getElementById("link-name")
+          .value.trim()
+          .replace(/^go\//, "");
+        const linkUrl = document.getElementById("link-url").value.trim();
+
+        if (linkName && linkUrl) {
+          const updatedLocalLinks = { ...links, [linkName]: linkUrl };
+          await chrome.storage.sync.set({ localLinks: updatedLocalLinks });
+          populateUserLinksWithForm(updatedLocalLinks);
+        }
+      });
   }
 
   populateUserLinksWithForm(localLinks);
