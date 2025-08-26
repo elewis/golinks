@@ -64,6 +64,7 @@
 
     const addBtn = document.createElement("button");
     addBtn.textContent = "Add";
+    addBtn.type = "submit";
     addBtn.id = "add-btn";
     addCell.appendChild(addBtn);
 
@@ -72,35 +73,23 @@
     formRow.appendChild(addCell);
     table.appendChild(formRow);
 
-    const handleSubmit = async () => {
-      const linkName = document
-        .getElementById("link-name")
-        .value.trim()
-        .replace(/^go\//, "");
-      const linkUrl = document.getElementById("link-url").value.trim();
-
-      if (linkName && linkUrl) {
-        const updatedLocalLinks = { ...links, [linkName]: linkUrl };
-        await browser.storage.sync.set({ localLinks: updatedLocalLinks });
-        populateUserLinksWithForm(updatedLocalLinks);
-      }
-    };
-
-    document.getElementById("add-btn").addEventListener("click", handleSubmit);
-
-    document.getElementById("link-name").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
+    document
+      .getElementById("add-link-form")
+      .addEventListener("submit", async (e) => {
         e.preventDefault();
-        document.getElementById("link-url").focus();
-      }
-    });
 
-    document.getElementById("link-url").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        handleSubmit();
-      }
-    });
+        const linkName = document
+          .getElementById("link-name")
+          .value.trim()
+          .replace(/^go\//, "");
+        const linkUrl = document.getElementById("link-url").value.trim();
+
+        if (linkName && linkUrl) {
+          const updatedLocalLinks = { ...links, [linkName]: linkUrl };
+          await browser.storage.sync.set({ localLinks: updatedLocalLinks });
+          populateUserLinksWithForm(updatedLocalLinks);
+        }
+      });
   }
 
   populateUserLinksWithForm(localLinks);

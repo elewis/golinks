@@ -10,9 +10,9 @@ importScripts("links.js");
 
 // Listen for storage changes and update rules
 chrome.storage.onChanged.addListener(async (changes, namespace) => {
-  if (namespace === "sync" && changes.links) {
+  if (namespace === "sync" && (changes.localLinks || changes.defaultLinks)) {
     console.debug("GoLinks: links updated, refreshing rules");
-    const links = changes.links.newValue;
+    const links = await getLinks();
     await updateRulesWithLinks(links);
   }
 });
