@@ -3,12 +3,14 @@
 (async () => {
   // Check if we have the necessary permissions
   const hasPermissions = await browser.permissions.contains({
-    origins: ["http://go/*", "https://go/*"]
+    origins: ["http://go/*", "https://go/*"],
   });
-  
+
   if (!hasPermissions) {
     console.warn("GoLinks: Missing host permissions for go/* URLs");
-    console.warn("GoLinks: Please grant permissions in about:addons > GoLinks > Permissions");
+    console.warn(
+      "GoLinks: Please grant permissions in about:addons > GoLinks > Permissions"
+    );
   }
 
   const links = await getLinks();
@@ -102,10 +104,13 @@ async function updateRulesWithLinks(links) {
   const old_rules = await browser.declarativeNetRequest.getDynamicRules();
   const old_rule_ids = old_rules.map((rule) => rule.id);
 
-  const rules_to_add = new_rules.map((rule, index) => ({ id: index + 1, ...rule }));
+  const rules_to_add = new_rules.map((rule, index) => ({
+    id: index + 1,
+    ...rule,
+  }));
   console.debug("GoLinks: removing rule IDs:", old_rule_ids);
   console.debug("GoLinks: adding rules:", rules_to_add);
-  
+
   await browser.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: old_rule_ids,
     addRules: rules_to_add,
@@ -119,28 +124,38 @@ browser.webRequest.onBeforeRequest.addListener(
   (details) => {
     const url = details.url;
 
-    if (url.startsWith('https://go/')) {
+    if (url.startsWith("https://go/")) {
       return;
     }
 
     // Look for "go/" pattern in URL (url encoded)
-    if (url.includes('go%2F')) {
+    if (url.includes("go%2F")) {
       const match = url.match(/go%2F\w+(%2F\w+)?/i);
       if (match) {
         const goLink = match[0];
         const redirectUrl = `https://${decodeURIComponent(goLink)}`;
-        console.debug("GoLinks: intercepting search for ", goLink, ", redirecting to:", redirectUrl);
+        console.debug(
+          "GoLinks: intercepting search for ",
+          goLink,
+          ", redirecting to:",
+          redirectUrl
+        );
         return { redirectUrl: redirectUrl };
       }
     }
 
     // Look for "go/" pattern in URL (not url encoded)
-    if (url.includes('go/')) {
+    if (url.includes("go/")) {
       const match = url.match(/go\/\w+(\/\w+)?/i);
       if (match) {
         const goLink = match[0];
         const redirectUrl = `https://${goLink}`;
-        console.debug("GoLinks: intercepting search for ", goLink, ", redirecting to:", redirectUrl);
+        console.debug(
+          "GoLinks: intercepting search for ",
+          goLink,
+          ", redirecting to:",
+          redirectUrl
+        );
         return { redirectUrl: redirectUrl };
       }
     }
