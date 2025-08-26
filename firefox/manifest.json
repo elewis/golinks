@@ -21,5 +21,11 @@
   "host_permissions": [
     "*://go/*",
     "*://*/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["index.html", "notfound.html"],
+      "matches": ["*://go/*"]
+    }
   ]
 }
