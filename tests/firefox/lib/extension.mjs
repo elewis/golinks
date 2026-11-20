@@ -25,12 +25,12 @@ export const MUTATIONS = {
   "no-help-rule": ["background.js", 'urlFilter: "||go/help|"', 'urlFilter: "||go/helpx|"'],
   "no-root-rule": ["background.js", 'urlFilter: "||go/|"', 'urlFilter: "||go/rootx|"'],
   "no-notfound-rule": ["background.js", 'urlFilter: "||go/*"', 'urlFilter: "||go/zzz*"'],
-  // Simulates a regression where any search-like URL containing go/ is redirected, on any host.
-  "hijack-go-substring": [
-    ["background.js", "!isSearchEngineHost(u.hostname)", "false"],
-    ["background.js", "urls: SEARCH_ENGINES.map((h) => `*://*.${h}/*`),", 'urls: ["<all_urls>"],'],
-    ["manifest.json", '"*://go/*",', '"*://go/*", "*://*/*",'],
-  ],
+  // Simulates a regression where "go/" anywhere in a query value (not just at its start) is redirected.
+  "hijack-go-substring": ["background.js", "query.match(/^go\\/", "query.match(/go\\/"],
+  // Simulates losing the narrowing: link clicks and form submits from a page are redirected too.
+  "redirect-from-pages": ["background.js", "if (details.originUrl) {", "if (false) {"],
+  "no-interception-cap": ["background.js", "interceptions.slice(-MAX_INTERCEPTIONS)", "interceptions"],
+  "interception-race": ["background.js", "interceptionsQueue = interceptionsQueue\n    .then(", "interceptionsQueue = Promise.resolve()\n    .then("],
   "delete-noop": ["index.js", "delete current[golink];", ""],
   "no-storage-refresh": ["background.js", 'namespace === "sync" &&', 'namespace === "never" &&'],
 };
@@ -40,7 +40,7 @@ export const MUTATIONS = {
 // declarativeNetRequest rules that outrank the extension's own rules. The
 // operation travels in the redirect's query string (a fragment is dropped by
 // the redirect) and the page reports back through its own URL fragment.
-const HARNESS_RULES = ["add", "del", "writes", "burst", "regex"].map((op, i) => ({
+const HARNESS_RULES = ["add", "del", "writes", "burst", "regex", "log", "flood"].map((op, i) => ({
   id: i + 1,
   priority: 100,
   action: { type: "redirect", redirect: { extensionPath: `/test.html?op=${op}` } },

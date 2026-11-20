@@ -111,6 +111,22 @@ async function run(cmd) {
     await waitFor(async () => (await browser.declarativeNetRequest.getDynamicRules()).length === 13, "13 rules");
     return {};
   }
+  if (cmd.op === "log") {
+    const { interceptions } = await browser.storage.local.get("interceptions");
+    return { entries: interceptions || [] };
+  }
+  if (cmd.op === "flood") {
+    // 150 overlapping records, straight into the background page.
+    const bg = await browser.runtime.getBackgroundPage();
+    await browser.storage.local.remove("interceptions");
+    await Promise.all(
+      Array.from({ length: 150 }, (_, i) =>
+        bg.recordInterception({ url: "https://e.test/?q=go%2Fn" + i, tabId: i }, "https://go/n" + i)
+      )
+    );
+    const { interceptions } = await browser.storage.local.get("interceptions");
+    return { entries: interceptions || [] };
+  }
   throw new Error("unknown op " + cmd.op);
 }
 

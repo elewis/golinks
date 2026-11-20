@@ -122,6 +122,12 @@ export class Firefox {
   get(url) {
     return this.#http("POST", this.#s("/url"), { url });
   }
+  /** Click the first element matching a CSS selector in the current page (a real WebDriver click). */
+  async click(selector) {
+    const el = await this.#http("POST", this.#s("/element"), { using: "css selector", value: selector });
+    const id = Object.values(el)[0];
+    return this.#http("POST", this.#s(`/element/${id}/click`), {});
+  }
   currentUrl() {
     return this.#http("GET", this.#s("/url"));
   }
