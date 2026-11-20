@@ -44,6 +44,15 @@ golinks/
 - Includes `webRequest` listener to catch bare `go/github` from address bar searches
 - Hybrid approach: webRequest for protocol-less URLs, declarativeNetRequest for actual redirects
 
+## Chrome/Firefox Parity
+`chrome/` and `firefox/` are parallel copies of one extension, and they must not drift apart.
+
+- **Mirrored files**: `links.js`, `index.js`, `index.html` and `notfound.html` are identical apart from the API namespace (`chrome.*` vs `browser.*`). Any change to one must be made to the other in the same change. Check with:
+  `for f in links.js index.js index.html notfound.html; do diff <(sed 's/browser\./chrome./g' firefox/$f) chrome/$f; done` (no output means in parity).
+- **Allowed divergence**: only `background.js` and `manifest.json` may differ, and only for browser-specific needs. These are the service worker with `importScripts()` vs the event page with a manifest `scripts` array, Firefox's `webRequest` interception of protocol-less `go/` URLs, and browser-specific manifest keys. Shared logic in those files, such as rule generation and storage handling, must still behave the same in both.
+- **Bug fixes**: when fixing a bug in one browser, check whether the other has it too. Fix both in the same change, or file a follow-up todo for the other browser and say so in the commit body.
+- **New behavior**: features land in both extensions together. A feature limited to one browser must say why in the commit body and in this file.
+
 ## Recent Fixes & Improvements
 - **Added Firefox support** with cross-browser compatibility
 - **Fixed CSP violations** that broke the extension in modern Chrome
