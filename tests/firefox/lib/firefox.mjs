@@ -2,8 +2,8 @@
 // WebDriver over HTTP (built-in fetch only, no third-party packages).
 import { spawn } from "node:child_process";
 import { closeSync, openSync, readFileSync } from "node:fs";
-import net from "node:net";
 import { setTimeout as sleep } from "node:timers/promises";
+import { freePort } from "../../lib/net.mjs";
 
 const GECKODRIVER = "/snap/bin/geckodriver";
 
@@ -18,17 +18,6 @@ const PREFS = {
   "browser.fixup.fallback-to-https": false,
   "network.proxy.type": 0,
 };
-
-export function freePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address();
-      server.close(() => resolve(port));
-    });
-  });
-}
 
 // Every geckodriver we start is killed (with the Firefox it spawned) on exit,
 // Ctrl-C or SIGTERM, even if a test run dies halfway.
