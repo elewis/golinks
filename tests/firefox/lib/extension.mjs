@@ -4,6 +4,7 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyMutation } from "../../lib/mutate.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "../../..");
@@ -24,8 +25,12 @@ export const MUTATIONS = {
   "no-help-rule": ["background.js", 'urlFilter: "||go/help|"', 'urlFilter: "||go/helpx|"'],
   "no-root-rule": ["background.js", 'urlFilter: "||go/|"', 'urlFilter: "||go/rootx|"'],
   "no-notfound-rule": ["background.js", 'urlFilter: "||go/*"', 'urlFilter: "||go/zzz*"'],
-  // Simulates a fix for the webRequest go/ redirect bug, to show an unexpected pass is loud.
-  "fix-webrequest-go-redirect": ["background.js", 'if (url.startsWith("https://go/")) {', "if (true) {"],
+  // Simulates a regression where any search-like URL containing go/ is redirected, on any host.
+  "hijack-go-substring": [
+    ["background.js", "!isSearchEngineHost(u.hostname)", "false"],
+    ["background.js", "urls: SEARCH_ENGINES.map((h) => `*://*.${h}/*`),", 'urls: ["<all_urls>"],'],
+    ["manifest.json", '"*://go/*",', '"*://go/*", "*://*/*",'],
+  ],
   "delete-noop": ["index.js", "delete current[golink];", ""],
   "no-storage-refresh": ["background.js", 'namespace === "sync" &&', 'namespace === "never" &&'],
 };
@@ -35,7 +40,7 @@ export const MUTATIONS = {
 // declarativeNetRequest rules that outrank the extension's own rules. The
 // operation travels in the redirect's query string (a fragment is dropped by
 // the redirect) and the page reports back through its own URL fragment.
-const HARNESS_RULES = ["add", "del", "writes"].map((op, i) => ({
+const HARNESS_RULES = ["add", "del", "writes", "burst", "regex"].map((op, i) => ({
   id: i + 1,
   priority: 100,
   action: { type: "redirect", redirect: { extensionPath: `/test.html?op=${op}` } },
@@ -60,16 +65,7 @@ export function buildExtension() {
   };
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
-  const mutation = process.env.GOLINKS_MUTATE;
-  if (mutation) {
-    const spec = MUTATIONS[mutation];
-    if (!spec) throw new Error(`unknown GOLINKS_MUTATE=${mutation}; known: ${Object.keys(MUTATIONS).join(", ")}`);
-    const [file, from, to] = spec;
-    const p = path.join(dir, file);
-    const text = readFileSync(p, "utf8");
-    if (!text.includes(from)) throw new Error(`mutation ${mutation}: pattern not found in ${file}`);
-    writeFileSync(p, text.replace(from, to));
-  }
+  applyMutation(dir, MUTATIONS);
   return { root, dir };
 }
 

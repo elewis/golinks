@@ -7,6 +7,8 @@
 //   op=del  click the delete button of the go/zzmine row
 //   op=writes  add zza, zzb, zzc then delete zzb, counting the form's
 //              storage.sync.set calls per action
+//   op=burst  write storage 6 times without awaiting between writes
+//   op=regex  store links whose names contain regex characters (a.b, c++)
 const LINK = { name: "zzmine", url: "https://example.com/mine" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -91,6 +93,23 @@ async function run(cmd) {
     perAction.push(sets - before);
     const { localLinks } = await browser.storage.sync.get("localLinks");
     return { perAction, keys: Object.keys(localLinks || {}).sort().join(",") };
+  }
+  if (cmd.op === "burst") {
+    await Promise.all(
+      [1, 2, 3, 4, 5, 6].map((i) =>
+        browser.storage.sync.set({ localLinks: { ["zzburst" + i]: "https://example.com/" + i } })
+      )
+    );
+    await waitFor(() => hasRule("zzburst6"), "rule for the last write");
+    return {};
+  }
+  if (cmd.op === "regex") {
+    await browser.storage.sync.set({
+      localLinks: { "a.b": "https://example.com/dot?x=%s", "c++": "https://example.com/plus?x=%s" },
+    });
+    // 8 default links + 2 local + help, root and not-found rules.
+    await waitFor(async () => (await browser.declarativeNetRequest.getDynamicRules()).length === 13, "13 rules");
+    return {};
   }
   throw new Error("unknown op " + cmd.op);
 }

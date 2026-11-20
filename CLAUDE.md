@@ -41,7 +41,7 @@ golinks/
 ### Firefox Version (`firefox/`)
 - Uses `browser.*` APIs directly (no polyfill needed)
 - Event page background script with manifest `scripts` array
-- Includes `webRequest` listener to catch bare `go/github` from address bar searches
+- Includes `webRequest` listener to catch bare `go/github` from address bar searches. Firefox turns that text into a search on the default engine, so the listener only fires for a fixed list of search-engine hosts (`SEARCH_ENGINES` in `background.js`, mirrored in `host_permissions`) and only when the query parameter (`q`, `p`, `query` or `text`) starts with `go/`. Other engines are not supported; add them to both places.
 - Hybrid approach: webRequest for protocol-less URLs, declarativeNetRequest for actual redirects
 
 ## Chrome/Firefox Parity
@@ -86,7 +86,7 @@ Installs a throwaway copy of `firefox/` as a temporary add-on in headless Firefo
 
 **Prerequisites**: Node 24, pnpm, snap Firefox and `/snap/bin/geckodriver`. The copy is built in `tests/firefox/.build/` (git-ignored, deleted after the run) because snap-confined Firefox cannot read `/tmp`.
 
-**Covers**: the background page loads with no JavaScript errors (the known "Duplicate rule ID" startup race is only reported as a warning); `go/github`, `go/cs/test`, `http://go/gh`, `go/help`, `go/` and an unknown link; adding and deleting a link through the options form updates the redirect rules. The known webRequest bug (the listener redirects any URL containing `go/`, so `https://github.com/golang/go/issues` is hijacked) is an expected failure shown as a `todo` test; the run prints an `UNEXPECTED PASS` message when it is fixed, and the `todo` option should then be removed.
+**Covers**: the background page loads with no JavaScript errors (startup errors fail the run); `go/github`, `go/cs/test`, `http://go/gh`, `go/help`, `go/` and an unknown link; adding and deleting a link through the options form updates the redirect rules; a burst of overlapping storage writes never fails with "Duplicate rule ID" and leaves the rules for the last write; link names containing regex characters (`a.b`, `c++`) match literally. URLs that merely contain `go/` (`https://github.com/golang/go/issues`, `https://example.com/?q=go/x`, `https://foo.go/bar`) are not redirected, and a search-engine URL carrying `go/github` in its query (what the address bar produces) is.
 
 **Does not cover**: typing protocol-less `go/github` in the real address bar (WebDriver cannot drive it, so only the webRequest listener is exercised), the about:debugging UI, signed or permanent installs, Firefox Sync, private windows, Chrome.
 
@@ -102,7 +102,7 @@ Installs a throwaway copy of `chrome/` in headless Google Chrome and exits non-z
 
 **Launch flags**: `--headless=new --no-sandbox --no-first-run --disable-gpu --enable-unsafe-extension-debugging --remote-debugging-port=<free port> --user-data-dir=<temp> --host-resolver-rules="MAP go 127.0.0.1"`. Branded Chrome ignores `--load-extension`, so the extension is installed with the DevTools method `Extensions.loadUnpacked`, which needs `--enable-unsafe-extension-debugging`. Chrome has no equivalent of Firefox's `network.dns.localDomains`, so `--host-resolver-rules` makes the `go` host resolve. Every Chrome process group started is killed on exit, Ctrl-C or SIGTERM.
 
-**Covers**: the service worker starts with no JavaScript errors (its console is captured from the first line; the "Duplicate rule ID" startup race is only reported as a warning, and has not been seen in Chrome); `https://go/github`, `https://go/cs/test`, `http://go/gh`, `https://go/help`, `https://go/` and an unknown link; adding and deleting a link through the options form updates the redirect rules; `https://github.com/golang/go/issues` is not redirected. Pages never touch the internet: requests that survive the extension's redirects are answered with an empty 200.
+**Covers**: the service worker starts with no JavaScript errors (its console is captured from the first line); `https://go/github`, `https://go/cs/test`, `http://go/gh`, `https://go/help`, `https://go/` and an unknown link; adding and deleting a link through the options form updates the redirect rules; a burst of overlapping storage writes never fails and leaves the rules for the last write; link names containing regex characters (`a.b`, `c++`) match literally; `https://github.com/golang/go/issues` is not redirected. Pages never touch the internet: requests that survive the extension's redirects are answered with an empty 200.
 
 **Does not cover**: typing `go/github` in the real address bar (Chrome treats it as a search; DevTools cannot drive the omnibox), `chrome://extensions`, packed or Web Store installs, Chrome Sync, incognito, Firefox.
 

@@ -2,20 +2,40 @@
 
 importScripts("links.js");
 
+// Rule updates are serialised on one promise chain. Two overlapping updates
+// (startup plus the storage change that getLinks() itself triggers) would both
+// read the same rule list and then both add ids 1..N, failing with a duplicate
+// rule ID error. Each queued task reads the links and the existing rules
+// afresh, so the last task always leaves the rules matching the latest storage.
+let rulesQueue = Promise.resolve();
+
+function refreshRules() {
+  const task = rulesQueue.then(async () => {
+    const links = await getLinks();
+    await updateRulesWithLinks(links);
+  });
+  // A failed update must not block later ones.
+  rulesQueue = task.catch((e) => console.error("GoLinks: updating rules failed:", e));
+  return task;
+}
+
 (async () => {
-  const links = await getLinks();
-  await updateRulesWithLinks(links);
+  await refreshRules();
   console.debug("GoLinks: extension loaded");
 })();
 
 // Listen for storage changes and update rules
-chrome.storage.onChanged.addListener(async (changes, namespace) => {
+chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === "sync" && (changes.localLinks || changes.defaultLinks)) {
     console.debug("GoLinks: links updated, refreshing rules");
-    const links = await getLinks();
-    await updateRulesWithLinks(links);
+    return refreshRules().catch(() => {});
   }
 });
+
+// Match a link name literally inside a regular expression.
+function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function get_rule(golink, destination) {
   if (destination.includes("%s")) {
@@ -28,7 +48,7 @@ function get_rule(golink, destination) {
         },
       },
       condition: {
-        regexFilter: "^https?://go/" + golink + "(?:/([^/]*))?",
+        regexFilter: "^https?://go/" + escapeRegex(golink) + "(?:/([^/]*))?",
         resourceTypes: ["main_frame"],
       },
     };

@@ -7,14 +7,8 @@ let fx;
 before(async () => (fx = await startFirefox()));
 after(() => fx?.stop());
 
-// Known issue (startup race creating rules): allowed, but reported as a warning.
-const ALLOWED = ["Duplicate rule ID"];
-
-test("background loads without JavaScript errors", async (t) => {
+test("background loads without JavaScript errors", async () => {
   assert.ok(await fx.ff.waitLog("GoLinks: extension loaded"), "'GoLinks: extension loaded' never appeared in the log");
   const errors = fx.ff.log().split("\n").filter((l) => l.includes("JavaScript error"));
-  for (const e of errors.filter((l) => ALLOWED.some((a) => l.includes(a)))) {
-    t.diagnostic(`WARNING (known startup race, allowed): ${e.trim().slice(0, 160)}`);
-  }
-  assert.deepEqual(errors.filter((l) => !ALLOWED.some((a) => l.includes(a))), []);
+  assert.deepEqual(errors, []);
 });

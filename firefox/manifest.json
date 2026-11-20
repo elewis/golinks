@@ -19,7 +19,15 @@
   ],
   "host_permissions": [
     "*://go/*",
-    "*://*/*"
+    "*://*.google.com/*",
+    "*://*.bing.com/*",
+    "*://*.duckduckgo.com/*",
+    "*://*.search.yahoo.com/*",
+    "*://*.ecosia.org/*",
+    "*://*.startpage.com/*",
+    "*://*.search.brave.com/*",
+    "*://*.qwant.com/*",
+    "*://*.kagi.com/*"
   ],
   "web_accessible_resources": [
     {
