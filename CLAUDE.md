@@ -22,9 +22,10 @@ Build with `pnpm build` (both), `pnpm build:firefox` or `pnpm build:chrome`. The
 - `common/rules.js` - rule generation (`get_rule()`, `escapeRegex()`), the serialised `refreshRules()` queue, `startRules()`, and the storage change listener
 - `common/index.html`, `common/index.js` - help page for `go/help` and bare `go/`, with the add/delete link form
 - `common/notfound.html` - 404 page for unmatched go/ links
+- `firefox/search.js` - Firefox-only pure logic: `goUrlFromSearch()`, `recordInterception()`, `MAX_INTERCEPTIONS`
 - `chrome/manifest.json`, `firefox/manifest.json` - Manifest v3, `declarativeNetRequestWithHostAccess` and `storage` permissions (Firefox adds `webRequest`)
 - `chrome/background.js` - service worker: `importScripts("api.js", "links.js", "rules.js")`, then `startRules()`
-- `firefox/background.js` - event page (manifest `scripts` lists `api.js`, `links.js`, `rules.js`, `background.js`): host-permission warning, `startRules()`, webRequest interception and interception recording
+- `firefox/background.js` - event page (manifest `scripts` lists `api.js`, `links.js`, `rules.js`, `search.js`, `background.js`): host-permission warning, `startRules()`, webRequest interception and interception recording
 
 ### How It Works
 1. **Initialization**: Background script loads links from browser storage, creates redirect rules
@@ -48,14 +49,14 @@ Build with `pnpm build` (both), `pnpm build:firefox` or `pnpm build:chrome`. The
 - Shared code uses `api.*` (the shim in `common/api.js`); `firefox/background.js` does too (no polyfill needed)
 - Event page background script with manifest `scripts` array
 - Includes a `webRequest` listener to catch bare `go/github` from address bar searches. Firefox turns that text into a search on the default engine, and an extension cannot change that (no API sets `browser.fixup.*`, experiments are off on Release), so the listener is the mechanism. It watches main_frame requests on every host (`<all_urls>`, `*://*/*` in `host_permissions`), so regional and custom engines work. It redirects to `https://go/...` only when the query parameter (`q`, `p`, `query` or `text`) starts with `go/` followed by a link name, and only when the request has no `details.originUrl`. An address-bar navigation has none; a link click or form submit from a page does, so those are left alone. Pages with an opaque origin (`data:`) report no originUrl and would still be redirected.
-- Every interception is recorded in `browser.storage.local` (per device, not sync) under `interceptions`: an array, newest last, capped at the last 100 (`MAX_INTERCEPTIONS`). Entry: `{ at: ISO timestamp, from: the original search URL, to: the https://go/... URL, tabId }`. `recordInterception(details, redirectUrl)` in `background.js` writes it, serialised on a promise chain and not awaited by the listener. Recording only; no UI yet. Needs no extra permission.
+- Every interception is recorded in `browser.storage.local` (per device, not sync) under `interceptions`: an array, newest last, capped at the last 100 (`MAX_INTERCEPTIONS`). Entry: `{ at: ISO timestamp, from: the original search URL, to: the https://go/... URL, tabId }`. `recordInterception(details, redirectUrl)` in `search.js` writes it, serialised on a promise chain and not awaited by the listener. Recording only; no UI yet. Needs no extra permission.
 - Hybrid approach: webRequest for protocol-less URLs, declarativeNetRequest for actual redirects
 
 ## Chrome/Firefox Parity
 Shared code lives once, in `common/`, so it cannot drift. There is no diff-based check any more.
 
 - **Shared**: `api.js`, `links.js`, `rules.js`, `index.js`, `index.html`, `notfound.html`. Use `api.*`, never `browser.*` or `chrome.*`, in `common/`.
-- **Allowed divergence**: only the two `background.js` files and the two `manifest.json` files, and only for browser-specific needs: the service worker with `importScripts()` vs the event page with a manifest `scripts` array, Firefox's `webRequest` interception of protocol-less `go/` URLs and its recording, and browser-specific manifest keys. Anything both browsers do (rule generation, storage handling) goes in `common/`, not in a background file.
+- **Allowed divergence**: only the two `background.js` files, the two `manifest.json` files and Firefox's `search.js` (its address-bar search logic), and only for browser-specific needs: the service worker with `importScripts()` vs the event page with a manifest `scripts` array, Firefox's `webRequest` interception of protocol-less `go/` URLs and its recording, and browser-specific manifest keys. Anything both browsers do (rule generation, storage handling) goes in `common/`, not in a background file.
 - **Bug fixes**: a fix in `common/` fixes both. A fix in a browser folder: check whether the other browser has the same problem and fix both in the same change, or file a follow-up todo and say so in the commit body.
 - **New behavior**: features land in both extensions together. A feature limited to one browser lives in that browser's folder, and the commit body and this file say why.
 - **New file**: a name must not exist in both `common/` and a browser folder (the build fails).
@@ -79,6 +80,18 @@ Shared code lives once, in `common/`, so it cannot drift. There is no diff-based
 
 ## Testing
 
+### Test workflow
+Red/green with `pnpm test` only: it is fast (under a second, no browser, no network), so run it after every change. Run `pnpm test:full` once at the end, before a handback, commit or merge. Do not iterate on the browser suites.
+
+```
+pnpm test        # build tests + extension unit tests + loader unit tests
+pnpm test:full   # pnpm test, then test:firefox, test:chrome, test:loader:integration
+```
+`pnpm test:unit` runs only the extension unit tests and `pnpm test:loader` only the loader unit tests (rdp framing, profiles, prefs). `pnpm test:loader:integration` runs the loader's headless-Firefox test.
+
+### Unit tests
+`tests/unit/*.test.mjs` run the shipped classic scripts (`common/*.js`, `firefox/search.js`, `firefox/background.js`) unchanged in a `node:vm` context with a fake `browser` (in-memory `storage.sync`/`storage.local`, `declarativeNetRequest` that rejects duplicate rule ids, recorded listeners), see `tests/unit/lib/sandbox.mjs`. Top-level `const`/`let` are not properties of the context, so tests read them with `get("expr")`. Covers regex escaping, `%s` vs static rules, rule ids and the help/root/not-found rules, default and local links, the serialised `refreshRules()` queue (no interleaving, a failure does not block), the storage listener, `goUrlFromSearch` (any host, `q`/`p`/`query`/`text`, non-matches), the interception record shape and cap, and the Firefox listener (no `originUrl` only). A new script that a background loads must be added to the load list in the test.
+
 ### Chrome
 Run `pnpm build:chrome`, then load `dist/chrome` as an unpacked extension. Navigate to `https://go/github`, `https://go/cs/test`, or `https://go/help`. Check service worker console at `chrome://extensions/`.
 
@@ -89,7 +102,7 @@ Run `pnpm build:firefox`, then load `dist/firefox` (or `pnpm load:firefox`, whic
 ```
 pnpm test:build
 ```
-Fast (no browser): the build output holds `common/` and the browser folder byte for byte, a name clash is an error, every script a manifest, worker or page loads exists in the build, and `pnpm load:firefox` rebuilds `dist/firefox`. `pnpm test` runs it first.
+Fast (no browser; `pnpm test` runs it too): the build output holds `common/` and the browser folder byte for byte, a name clash is an error, every script a manifest, worker or page loads exists in the build, and `pnpm load:firefox` rebuilds `dist/firefox`. 
 
 ### Firefox automated tests
 ```
@@ -109,7 +122,7 @@ Set `GOLINKS_MUTATE=<name>` (names in `tests/firefox/lib/extension.mjs`; each na
 ```
 pnpm test:chrome
 ```
-Builds `common/` + `chrome/` into a throwaway copy and installs it in headless Google Chrome and exits non-zero on any failure. `pnpm test` runs this suite after the Firefox one. No dependencies are installed: it uses Node 24 (`node:test`, built-in `fetch` and `WebSocket`) and talks to Chrome directly over the DevTools protocol, with no chromedriver.
+Builds `common/` + `chrome/` into a throwaway copy and installs it in headless Google Chrome and exits non-zero on any failure. `pnpm test:full` runs this suite after the Firefox one. No dependencies are installed: it uses Node 24 (`node:test`, built-in `fetch` and `WebSocket`) and talks to Chrome directly over the DevTools protocol, with no chromedriver.
 
 **Prerequisites**: Node 24, pnpm and `/usr/bin/google-chrome`. The copy is built in `tests/chrome/.build/` (git-ignored, deleted after the run).
 
@@ -143,7 +156,7 @@ Builds `dist/firefox/` (`common/` + `firefox/`) and installs it as a temporary a
 
 **Errors**: no profile (lists where it looked), port held by something that is not Firefox's debugger, Firefox's own message when the install is rejected, Firefox refusing to quit, and the server not closing afterwards.
 
-**Tests**: `pnpm test:loader` (about 40 s; `pnpm test` runs it after the Firefox and Chrome suites): unit tests for the protocol framing, profile lookup and prefs, and an integration test that starts headless Firefox on a throwaway profile in `tests/load-firefox/.build/` (git-ignored). It checks that the add-on's background page really runs (the test add-on calls a local HTTP server), that the debugger port is closed after every run, that a reload does not restart Firefox (same pid), that the fallback to the restart prompt is quick when the forwarded command is not taken, that the window's `remotecontrol` attribute (logged from inside Firefox) goes from `true` to `null`, that `user.js` and `prefs.js` hold none of the three prefs while Firefox runs and after it quits, and the refuse/`--restart` paths. It never reads or touches a real profile. **Does not cover**: the real profile, a non-headless window in the suite (headless Firefox has no remoting, so step 2 is only exercised as "skipped, ask to restart"; its success side, including the default-branch prefs, was run by hand in a throwaway headful profile), the visual look of the URL bar, session restore of real tabs.
+**Tests**: `pnpm test:loader` is the fast unit tests for the protocol framing, profile lookup and prefs (part of `pnpm test`). `pnpm test:loader:integration` (about 40 s; part of `pnpm test:full`) is an integration test that starts headless Firefox on a throwaway profile in `tests/load-firefox/.build/` (git-ignored). It checks that the add-on's background page really runs (the test add-on calls a local HTTP server), that the debugger port is closed after every run, that a reload does not restart Firefox (same pid), that the fallback to the restart prompt is quick when the forwarded command is not taken, that the window's `remotecontrol` attribute (logged from inside Firefox) goes from `true` to `null`, that `user.js` and `prefs.js` hold none of the three prefs while Firefox runs and after it quits, and the refuse/`--restart` paths. It never reads or touches a real profile. **Does not cover**: the real profile, a non-headless window in the suite (headless Firefox has no remoting, so step 2 is only exercised as "skipped, ask to restart"; its success side, including the default-branch prefs, was run by hand in a throwaway headful profile), the visual look of the URL bar, session restore of real tabs.
 
 ## Configuration
 Links can be updated programmatically in both browsers:

@@ -1,7 +1,6 @@
 // Minimal client for Firefox's Remote Debugging Protocol (the one web-ext and
 // about:debugging use), on node:net only. A packet is `<byte length>:<json>`.
 import net from "node:net";
-import { setTimeout as sleep } from "node:timers/promises";
 
 export function encodePacket(obj) {
   const json = Buffer.from(JSON.stringify(obj), "utf8");
@@ -166,7 +165,15 @@ export class RdpClient {
         throw new Error(`${e.message} (the close relies on Firefox internals: DistinctSystemPrincipalLoader.sys.mjs and the devtools-startup-clh component, checked on Firefox 157)`);
       }
     }
-    await Promise.race([dropped, sleep(timeout).then(() => Promise.reject(new Error("Firefox did not close its debugger server")))]);
+    let timer;
+    const expired = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Firefox did not close its debugger server")), timeout);
+    });
+    try {
+      await Promise.race([dropped, expired]);
+    } finally {
+      clearTimeout(timer); // else the pending timer keeps Node alive for the full timeout
+    }
   }
 
   close() {

@@ -6,11 +6,14 @@
     "build": "node scripts/build.mjs",
     "build:firefox": "node scripts/build.mjs firefox",
     "build:chrome": "node scripts/build.mjs chrome",
-    "test": "pnpm run test:build && pnpm run test:firefox && pnpm run test:chrome && pnpm run test:loader",
+    "test": "node --test tests/build/*.test.mjs tests/unit/*.test.mjs tests/load-firefox/prefs.test.mjs tests/load-firefox/profiles.test.mjs tests/load-firefox/rdp.test.mjs",
     "test:firefox": "node --test --test-concurrency=1 tests/firefox/*.test.mjs",
     "test:chrome": "node --test --test-concurrency=1 tests/chrome/*.test.mjs",
     "test:build": "node --test tests/build/*.test.mjs",
     "load:firefox": "node scripts/load-firefox.mjs",
-    "test:loader": "node --test --test-concurrency=1 tests/load-firefox/*.test.mjs"
+    "test:loader": "node --test tests/load-firefox/prefs.test.mjs tests/load-firefox/profiles.test.mjs tests/load-firefox/rdp.test.mjs",
+    "test:unit": "node --test tests/unit/*.test.mjs",
+    "test:loader:integration": "node --test --test-concurrency=1 tests/load-firefox/loader.test.mjs",
+    "test:full": "pnpm test && pnpm run test:firefox && pnpm run test:chrome && pnpm run test:loader:integration"
   }
 }
