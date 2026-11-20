@@ -3,8 +3,10 @@
   "private": true,
   "packageManager": "pnpm@10.18.0",
   "scripts": {
-    "test": "pnpm run test:firefox && pnpm run test:chrome",
+    "test": "pnpm run test:firefox && pnpm run test:chrome && pnpm run test:loader",
     "test:firefox": "node --test --test-concurrency=1 tests/firefox/*.test.mjs",
-    "test:chrome": "node --test --test-concurrency=1 tests/chrome/*.test.mjs"
+    "test:chrome": "node --test --test-concurrency=1 tests/chrome/*.test.mjs",
+    "load:firefox": "node scripts/load-firefox.mjs",
+    "test:loader": "node --test --test-concurrency=1 tests/load-firefox/*.test.mjs"
   }
 }

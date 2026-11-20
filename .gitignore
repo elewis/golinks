@@ -1,3 +1,4 @@
 .DS_Store
 tests/firefox/.build/
 tests/chrome/.build/
+tests/load-firefox/.build/

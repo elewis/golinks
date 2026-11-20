@@ -108,6 +108,27 @@ Installs a throwaway copy of `chrome/` in headless Google Chrome and exits non-z
 
 Set `GOLINKS_MUTATE=<name>` (names in `tests/chrome/lib/extension.mjs`) to break the copy on purpose and check that a test goes red.
 
+### Dev loader (Firefox)
+```
+pnpm load:firefox
+```
+Installs `firefox/` as a temporary add-on into your everyday Firefox, replacing the about:debugging "Load Temporary Add-on" clicks. Run it again after an edit to reload the add-on. It talks to Firefox's Remote Debugging Protocol (what `web-ext run` uses) with `node:net` only. It does not use WebDriver/Marionette, so Firefox is not marked as automated. No dependencies. Firefox is run from `/snap/bin/firefox` (the `/usr/bin/firefox` wrapper changes desktop settings), and the add-on is installed straight from `firefox/`.
+
+**What it does, in order**:
+1. Something already speaks the debugger protocol on the port: installs or reloads the add-on and exits. No restart. This is the normal loop.
+2. Firefox is running on the profile without the server: asks `y/N` (or pass `--restart`), quits it with SIGTERM (a normal shutdown, never SIGKILL) and relaunches it with `--start-debugger-server`. If Firefox does not quit within 60 s the script gives up. The tabs only come back by themselves when `browser.startup.page` is 3; otherwise use History > Restore Previous Session (the script warns).
+3. Firefox is not running: launches it (normal window) with the server, then installs.
+
+**Prefs**: the server needs `devtools.debugger.remote-enabled=true`, `devtools.debugger.prompt-connection=false` and `devtools.chrome.enabled=true` in the profile. If they are missing the script prints them and asks `y/N` (or pass `--set-prefs`), appends them to the profile's `user.js` and prints the exact lines it wrote. It changes nothing else, and with no terminal and no flag it changes nothing at all. `user.js` is applied on every start, so the prefs stay until you delete those lines.
+
+**Risk**: while Firefox runs with the server, any program on this computer (localhost only) can connect to the port, with no prompt, and fully control the browser. Removing the prefs is not enough, since the server stays open until Firefox restarts; there is no protocol command or pref change that closes it (setting the pref to `false` at runtime did not). A temporary add-on is gone when Firefox restarts, so run the script again after each restart. Without `--start-debugger-server` on the command line and the prefs, a normal Firefox start opens no port.
+
+**Options** (`pnpm load:firefox -- --help`): `--profile <dir>` / `GOLINKS_FF_PROFILE` (default: the default profile from `~/snap/firefox/common/.mozilla/firefox/profiles.ini`, else `~/.mozilla/firefox/profiles.ini`), `--port <n>` / `GOLINKS_FF_PORT` (default 6005), `--addon <dir>`, `--binary <path>` / `GOLINKS_FF_BIN`, `--set-prefs`, `--restart`, `--headless`.
+
+**Errors**: no profile (lists where it looked), port held by something that is not Firefox's debugger, Firefox's own message when the install is rejected, and Firefox refusing to quit.
+
+**Tests**: `pnpm test:loader` (about 5 s; `pnpm test` runs it after the Firefox and Chrome suites): unit tests for the protocol framing, profile lookup and prefs, and an integration test that starts headless Firefox on a throwaway profile in `tests/load-firefox/.build/` (git-ignored), runs the loader, reruns it to prove the reload happens in the same process, and covers the refuse/`--restart` paths. It never reads or touches a real profile. **Does not cover**: the real profile, a non-headless window, session restore of real tabs, that the add-on's background page actually runs (only that Firefox lists it as a temporary add-on, and that edited files are picked up on rerun).
+
 ## Configuration
 Links can be updated programmatically in both browsers:
 
