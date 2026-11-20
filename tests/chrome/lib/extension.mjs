@@ -30,7 +30,7 @@ export const MUTATIONS = {
     ["background.js", 'urlFilter: "||go/*"', 'urlFilter: "go/*"'],
     ["manifest.json", '"https://go/"', '"https://go/", "https://github.com/"'],
   ],
-  "delete-noop": ["index.js", "delete updatedLinks[golink];", ""],
+  "delete-noop": ["index.js", "delete current[golink];", ""],
   "no-storage-refresh": ["background.js", 'namespace === "sync" &&', 'namespace === "never" &&'],
 };
 

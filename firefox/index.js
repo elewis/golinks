@@ -4,6 +4,11 @@
   const defaultLinks = result.defaultLinks || {};
   const localLinks = result.localLinks || {};
 
+  async function getLocalLinks() {
+    const { localLinks } = await browser.storage.sync.get("localLinks");
+    return { ...(localLinks || {}) };
+  }
+
   function cell(text) {
     const cell = document.createElement("td");
     const cellText = document.createTextNode(text);
@@ -41,10 +46,10 @@
       deleteBtn.title = "Delete link";
 
       deleteBtn.addEventListener("click", async () => {
-        const updatedLinks = { ...links };
-        delete updatedLinks[golink];
-        await browser.storage.sync.set({ localLinks: updatedLinks });
-        populateUserLinksWithForm(updatedLinks);
+        const current = await getLocalLinks();
+        delete current[golink];
+        await browser.storage.sync.set({ localLinks: current });
+        populateUserLinksWithForm(current);
       });
 
       deleteCell.appendChild(deleteBtn);
@@ -72,25 +77,28 @@
     formRow.appendChild(urlCell);
     formRow.appendChild(addCell);
     table.appendChild(formRow);
-
-    document
-      .getElementById("add-link-form")
-      .addEventListener("submit", async (e) => {
-        e.preventDefault();
-
-        const linkName = document
-          .getElementById("link-name")
-          .value.trim()
-          .replace(/^go\//, "");
-        const linkUrl = document.getElementById("link-url").value.trim();
-
-        if (linkName && linkUrl) {
-          const updatedLocalLinks = { ...links, [linkName]: linkUrl };
-          await browser.storage.sync.set({ localLinks: updatedLocalLinks });
-          populateUserLinksWithForm(updatedLocalLinks);
-        }
-      });
   }
+
+  // Registered once: the form element survives re-renders (only its table is
+  // rebuilt), and the links are read from storage at submit time.
+  document
+    .getElementById("add-link-form")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const linkName = document
+        .getElementById("link-name")
+        .value.trim()
+        .replace(/^go\//, "");
+      const linkUrl = document.getElementById("link-url").value.trim();
+
+      if (linkName && linkUrl) {
+        const current = await getLocalLinks();
+        current[linkName] = linkUrl;
+        await browser.storage.sync.set({ localLinks: current });
+        populateUserLinksWithForm(current);
+      }
+    });
 
   populateUserLinksWithForm(localLinks);
   populateTable("default-links", defaultLinks);

@@ -9,7 +9,6 @@
     }
   },
   "background": {
-    "service_worker": "background.js",
     "scripts": ["links.js", "background.js"]
   },
   "permissions": [

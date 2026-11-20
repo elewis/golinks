@@ -73,10 +73,10 @@ golinks/
 ## Testing
 
 ### Chrome
-Navigate to `https://go/github`, `https://go/githubsearch/test`, or `https://go/help`. Check service worker console at `chrome://extensions/`.
+Navigate to `https://go/github`, `https://go/cs/test`, or `https://go/help`. Check service worker console at `chrome://extensions/`.
 
 ### Firefox  
-Navigate to `go/github` (protocol-less works!), `https://go/githubsearch/test`, or `https://go/help`. Check extension console at `about:debugging`.
+Navigate to `go/github` (protocol-less works!), `https://go/cs/test`, or `https://go/help`. Check extension console at `about:debugging`.
 
 ### Firefox automated tests
 ```

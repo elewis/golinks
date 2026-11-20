@@ -5,6 +5,8 @@
 // moz-extension:// pages, but can read their URL.
 //   op=add  add go/zzmine -> https://example.com/mine through the form
 //   op=del  click the delete button of the go/zzmine row
+//   op=writes  add zza, zzb, zzc then delete zzb, counting the form's
+//              storage.sync.set calls per action
 const LINK = { name: "zzmine", url: "https://example.com/mine" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -63,6 +65,32 @@ async function run(cmd) {
     }, "link removed from storage");
     await waitFor(async () => !(await hasRule(LINK.name)), "rule removed");
     return {};
+  }
+  if (cmd.op === "writes") {
+    const doc = await loadForm();
+    const win = doc.defaultView;
+    let sets = 0;
+    const orig = win.browser.storage.sync.set.bind(win.browser.storage.sync);
+    win.browser.storage.sync.set = (v) => (sets++, orig(v));
+    const perAction = [];
+    for (const n of ["zza", "zzb", "zzc"]) {
+      const before = sets;
+      doc.getElementById("link-name").value = n;
+      doc.getElementById("link-url").value = `https://example.com/${n}`;
+      doc.getElementById("add-btn").click();
+      await waitFor(() => sets > before, "storage.set for " + n);
+      await sleep(300);
+      perAction.push(sets - before);
+    }
+    const before = sets;
+    [...doc.querySelectorAll("#user-links tr")]
+      .find((r) => r.firstChild.textContent === "go/zzb")
+      .querySelector("button").click();
+    await waitFor(() => sets > before, "storage.set for delete");
+    await sleep(300);
+    perAction.push(sets - before);
+    const { localLinks } = await browser.storage.sync.get("localLinks");
+    return { perAction, keys: Object.keys(localLinks || {}).sort().join(",") };
   }
   throw new Error("unknown op " + cmd.op);
 }
