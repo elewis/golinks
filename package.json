@@ -1,0 +1,9 @@
+{
+  "name": "golinks",
+  "private": true,
+  "packageManager": "pnpm@10.18.0",
+  "scripts": {
+    "test": "pnpm run test:firefox",
+    "test:firefox": "node --test --test-concurrency=1 tests/firefox/*.test.mjs"
+  }
+}

@@ -69,6 +69,20 @@ Navigate to `https://go/github`, `https://go/githubsearch/test`, or `https://go/
 ### Firefox  
 Navigate to `go/github` (protocol-less works!), `https://go/githubsearch/test`, or `https://go/help`. Check extension console at `about:debugging`.
 
+### Firefox automated tests
+```
+pnpm test
+```
+Installs a throwaway copy of `firefox/` as a temporary add-on in headless Firefox and exits non-zero on any failure. No dependencies are installed: it uses Node 24 (`node:test`, built-in `fetch`) and raw WebDriver against the system geckodriver. `pnpm test` is an alias for `pnpm test:firefox`.
+
+**Prerequisites**: Node 24, pnpm, snap Firefox and `/snap/bin/geckodriver`. The copy is built in `tests/firefox/.build/` (git-ignored, deleted after the run) because snap-confined Firefox cannot read `/tmp`.
+
+**Covers**: the background page loads with no JavaScript errors (the known "Duplicate rule ID" startup race is only reported as a warning); `go/github`, `go/cs/test`, `http://go/gh`, `go/help`, `go/` and an unknown link; adding and deleting a link through the options form updates the redirect rules. The known webRequest bug (the listener redirects any URL containing `go/`, so `https://github.com/golang/go/issues` is hijacked) is an expected failure shown as a `todo` test; the run prints an `UNEXPECTED PASS` message when it is fixed, and the `todo` option should then be removed.
+
+**Does not cover**: typing protocol-less `go/github` in the real address bar (WebDriver cannot drive it, so only the webRequest listener is exercised), the about:debugging UI, signed or permanent installs, Firefox Sync, private windows, Chrome.
+
+Set `GOLINKS_MUTATE=<name>` (names in `tests/firefox/lib/extension.mjs`) to break the copy on purpose and check that a test goes red.
+
 ## Configuration
 Links can be updated programmatically in both browsers:
 
