@@ -1,6 +1,6 @@
 async function getLinks() {
   // Get both defaultLinks and localLinks from storage
-  const result = await browser.storage.sync.get(["defaultLinks", "localLinks"]);
+  const result = await api.storage.sync.get(["defaultLinks", "localLinks"]);
 
   const defaultLinks = {
     github: "https://github.com",
@@ -19,7 +19,7 @@ async function getLinks() {
     JSON.stringify(result.defaultLinks) !== JSON.stringify(defaultLinks)
   ) {
     console.debug("GoLinks: updating default links");
-    await browser.storage.sync.set({ defaultLinks });
+    await api.storage.sync.set({ defaultLinks });
   }
 
   const localLinks = result.localLinks || {};

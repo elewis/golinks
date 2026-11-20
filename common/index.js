@@ -1,11 +1,11 @@
 (async () => {
-  const result = await chrome.storage.sync.get(["defaultLinks", "localLinks"]);
+  const result = await api.storage.sync.get(["defaultLinks", "localLinks"]);
 
   const defaultLinks = result.defaultLinks || {};
   const localLinks = result.localLinks || {};
 
   async function getLocalLinks() {
-    const { localLinks } = await chrome.storage.sync.get("localLinks");
+    const { localLinks } = await api.storage.sync.get("localLinks");
     return { ...(localLinks || {}) };
   }
 
@@ -48,7 +48,7 @@
       deleteBtn.addEventListener("click", async () => {
         const current = await getLocalLinks();
         delete current[golink];
-        await chrome.storage.sync.set({ localLinks: current });
+        await api.storage.sync.set({ localLinks: current });
         populateUserLinksWithForm(current);
       });
 
@@ -95,7 +95,7 @@
       if (linkName && linkUrl) {
         const current = await getLocalLinks();
         current[linkName] = linkUrl;
-        await chrome.storage.sync.set({ localLinks: current });
+        await api.storage.sync.set({ localLinks: current });
         populateUserLinksWithForm(current);
       }
     });

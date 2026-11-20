@@ -9,7 +9,7 @@
     }
   },
   "background": {
-    "scripts": ["links.js", "background.js"]
+    "scripts": ["api.js", "links.js", "rules.js", "background.js"]
   },
   "permissions": [
     "declarativeNetRequestWithHostAccess",

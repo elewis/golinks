@@ -12,6 +12,7 @@ import readline from "node:readline/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { build } from "./build.mjs";
 import { applyPrefs, conflictingPrefs, existingPrefs, missingPrefs, movePrefsScript, removePrefs } from "./lib/prefs.mjs";
 import { acceptsForwardedCommands, findProfile, runningPid } from "./lib/profiles.mjs";
 import { RdpClient } from "./lib/rdp.mjs";
@@ -21,11 +22,11 @@ const DEFAULT_PORT = 6005;
 
 const HELP = `Usage: pnpm load:firefox [options]
 
-Installs firefox/ as a temporary add-on. Run it again to reload after an edit.
+Builds dist/firefox/ and installs it as a temporary add-on. Run it again to reload after an edit.
 
   --profile <dir>   Firefox profile directory   (env GOLINKS_FF_PROFILE; default: profiles.ini default)
   --port <n>        debugger server port        (env GOLINKS_FF_PORT; default: ${DEFAULT_PORT})
-  --addon <dir>     add-on directory            (default: firefox/ in this repo)
+  --addon <dir>     add-on directory            (default: build dist/firefox/ from this repo)
   --binary <path>   Firefox executable          (env GOLINKS_FF_BIN; default: /snap/bin/firefox, else firefox)
   --set-prefs       allow adding the debugger prefs to the profile's user.js without asking
   --restart         allow quitting a running Firefox that has no debugger server, without asking
@@ -77,7 +78,9 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
   try {
     const port = Number(args.port ?? env.GOLINKS_FF_PORT ?? DEFAULT_PORT);
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new UserError(`Invalid port: ${args.port ?? env.GOLINKS_FF_PORT}`);
-    const addonDir = path.resolve(args.addon ?? path.join(REPO, "firefox"));
+    // Default: build common/ + firefox/ into dist/firefox first, so a rerun reloads fresh code.
+    // An explicit --addon directory is installed as it is.
+    const addonDir = args.addon ? path.resolve(args.addon) : build("firefox");
     if (!existsSync(path.join(addonDir, "manifest.json"))) throw new UserError(`No manifest.json in ${addonDir}.`);
     const addonId = JSON.parse(readFileSync(path.join(addonDir, "manifest.json"), "utf8")).browser_specific_settings?.gecko?.id;
     const profile = findProfile({ home: os.homedir(), override: args.profile ?? env.GOLINKS_FF_PROFILE });

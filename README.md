@@ -18,17 +18,17 @@ GoLinks allows you to create short redirect links that work in your browser's ad
 ## Installation
 
 ### Chrome
-1. Clone this repository
+1. Clone this repository and run `pnpm build:chrome`
 2. Open `chrome://extensions/` in Chrome
 3. Enable "Developer mode"
-4. Click "Load unpacked" and select the `chrome` folder
+4. Click "Load unpacked" and select the `dist/chrome` folder
 
 ### Firefox
-1. Clone this repository
+1. Clone this repository and run `pnpm build:firefox`
 2. Open `about:debugging` in Firefox
 3. Click "This Firefox"
 4. Click "Load Temporary Add-on"
-5. Select the `manifest.json` file from the `firefox` folder
+5. Select the `manifest.json` file from the `dist/firefox` folder
 6. Grant host permissions when prompted
 
 ## Usage
@@ -89,7 +89,7 @@ Use `%s` in URLs to create parameterized links that accept arguments.
 
 - **Chrome**: Manifest V3 with service workers and `chrome.declarativeNetRequest`
 - **Firefox**: Manifest V3 with event pages, `browser.declarativeNetRequest` + `browser.webRequest`
-- **Cross-browser**: No shared polyfills, each optimized for its platform
+- **Cross-browser**: shared code in `common/`; `pnpm build` assembles `dist/chrome` and `dist/firefox`, which are what you load
 - **Storage**: Configuration syncs across browser installations
 - **Dependencies**: None - uses native browser APIs only
 
@@ -97,7 +97,9 @@ Use `%s` in URLs to create parameterized links that accept arguments.
 
 ```
 golinks/
-├── chrome/          # Chrome-optimized version
-├── firefox/         # Firefox-optimized version  
+├── common/          # code shared by both browsers
+├── chrome/          # Chrome-only manifest and background
+├── firefox/         # Firefox-only manifest and background
+├── scripts/build.mjs  # copies common/ + <browser>/ into dist/<browser>/
 └── CLAUDE.md        # Detailed technical documentation
 ```

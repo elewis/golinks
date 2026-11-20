@@ -8,23 +8,29 @@ Browser extensions that provide in-browser go/ links (e.g., `go/github`) that re
 ### Directory Structure
 ```
 golinks/
-├── chrome/          # Chrome extension (Manifest V3)
-├── firefox/         # Firefox extension (cross-compatible)
-└── shared/          # (future: shared components)
+├── common/          # files both browsers run, byte for byte
+├── chrome/          # Chrome-only: manifest.json, background.js
+├── firefox/         # Firefox-only: manifest.json, background.js
+├── scripts/build.mjs  # copies common/ + <browser>/ into dist/<browser>/
+└── dist/            # git-ignored build output: load this, zip this for the stores
 ```
+Build with `pnpm build` (both), `pnpm build:firefox` or `pnpm build:chrome`. The build is a plain copy (Node built-ins only). A file name present in both `common/` and a browser folder is an error, so nothing is overridden silently. Edit `common/`, `chrome/` and `firefox/`, never `dist/`.
 
 ### Key Files
-- `manifest.json` - Extension configuration with Manifest v3, requires `declarativeNetRequestWithHostAccess` and `storage` permissions
-- `background.js` - Manages redirect rules using declarativeNetRequest API (Chrome: service worker, Firefox: event page)
-- `links.js` - Handles link storage/retrieval from browser sync storage
-- `index.html` - Help page shown for `go/help` and bare `go/` URLs
-- `notfound.html` - 404 page for unmatched go/ links
+- `common/api.js` - namespace shim, loaded first everywhere: `const api = globalThis.browser ?? globalThis.chrome;`. All shared code calls `api.*` (Promise-based MV3 calls, valid in both browsers).
+- `common/links.js` - link storage/retrieval from browser sync storage (`getLinks()`, default links)
+- `common/rules.js` - rule generation (`get_rule()`, `escapeRegex()`), the serialised `refreshRules()` queue, `startRules()`, and the storage change listener
+- `common/index.html`, `common/index.js` - help page for `go/help` and bare `go/`, with the add/delete link form
+- `common/notfound.html` - 404 page for unmatched go/ links
+- `chrome/manifest.json`, `firefox/manifest.json` - Manifest v3, `declarativeNetRequestWithHostAccess` and `storage` permissions (Firefox adds `webRequest`)
+- `chrome/background.js` - service worker: `importScripts("api.js", "links.js", "rules.js")`, then `startRules()`
+- `firefox/background.js` - event page (manifest `scripts` lists `api.js`, `links.js`, `rules.js`, `background.js`): host-permission warning, `startRules()`, webRequest interception and interception recording
 
 ### How It Works
 1. **Initialization**: Background script loads links from browser storage, creates redirect rules
 2. **Storage Integration**: Uses browser sync storage for configurable links that sync across devices  
 3. **Dynamic Updates**: Storage change listener automatically updates rules when links are modified
-4. **Rule Generation**: Single `get_rule()` function handles both parameterized (`%s`) and static redirects
+4. **Rule Generation**: Single `get_rule()` function (in `common/rules.js`) handles both parameterized (`%s`) and static redirects
 5. **Protocol Handling**: Firefox uses webRequest to catch bare `go/` URLs from address bar searches
 
 ### Link Types
@@ -34,25 +40,25 @@ golinks/
 ## Browser-Specific Implementation
 
 ### Chrome Version (`chrome/`)
-- Uses `chrome.*` APIs directly
+- Shared code uses `api.*` (resolves to `chrome.*`); `chrome/background.js` is only the worker entry point
 - Service worker background script with `importScripts()`
 - Requires `https://go/github` format in address bar
 
 ### Firefox Version (`firefox/`)
-- Uses `browser.*` APIs directly (no polyfill needed)
+- Shared code uses `api.*` (the shim in `common/api.js`); `firefox/background.js` does too (no polyfill needed)
 - Event page background script with manifest `scripts` array
 - Includes a `webRequest` listener to catch bare `go/github` from address bar searches. Firefox turns that text into a search on the default engine, and an extension cannot change that (no API sets `browser.fixup.*`, experiments are off on Release), so the listener is the mechanism. It watches main_frame requests on every host (`<all_urls>`, `*://*/*` in `host_permissions`), so regional and custom engines work. It redirects to `https://go/...` only when the query parameter (`q`, `p`, `query` or `text`) starts with `go/` followed by a link name, and only when the request has no `details.originUrl`. An address-bar navigation has none; a link click or form submit from a page does, so those are left alone. Pages with an opaque origin (`data:`) report no originUrl and would still be redirected.
 - Every interception is recorded in `browser.storage.local` (per device, not sync) under `interceptions`: an array, newest last, capped at the last 100 (`MAX_INTERCEPTIONS`). Entry: `{ at: ISO timestamp, from: the original search URL, to: the https://go/... URL, tabId }`. `recordInterception(details, redirectUrl)` in `background.js` writes it, serialised on a promise chain and not awaited by the listener. Recording only; no UI yet. Needs no extra permission.
 - Hybrid approach: webRequest for protocol-less URLs, declarativeNetRequest for actual redirects
 
 ## Chrome/Firefox Parity
-`chrome/` and `firefox/` are parallel copies of one extension, and they must not drift apart.
+Shared code lives once, in `common/`, so it cannot drift. There is no diff-based check any more.
 
-- **Mirrored files**: `links.js`, `index.js`, `index.html` and `notfound.html` are identical apart from the API namespace (`chrome.*` vs `browser.*`). Any change to one must be made to the other in the same change. Check with:
-  `for f in links.js index.js index.html notfound.html; do diff <(sed 's/browser\./chrome./g' firefox/$f) chrome/$f; done` (no output means in parity).
-- **Allowed divergence**: only `background.js` and `manifest.json` may differ, and only for browser-specific needs. These are the service worker with `importScripts()` vs the event page with a manifest `scripts` array, Firefox's `webRequest` interception of protocol-less `go/` URLs, and browser-specific manifest keys. Shared logic in those files, such as rule generation and storage handling, must still behave the same in both.
-- **Bug fixes**: when fixing a bug in one browser, check whether the other has it too. Fix both in the same change, or file a follow-up todo for the other browser and say so in the commit body.
-- **New behavior**: features land in both extensions together. A feature limited to one browser must say why in the commit body and in this file.
+- **Shared**: `api.js`, `links.js`, `rules.js`, `index.js`, `index.html`, `notfound.html`. Use `api.*`, never `browser.*` or `chrome.*`, in `common/`.
+- **Allowed divergence**: only the two `background.js` files and the two `manifest.json` files, and only for browser-specific needs: the service worker with `importScripts()` vs the event page with a manifest `scripts` array, Firefox's `webRequest` interception of protocol-less `go/` URLs and its recording, and browser-specific manifest keys. Anything both browsers do (rule generation, storage handling) goes in `common/`, not in a background file.
+- **Bug fixes**: a fix in `common/` fixes both. A fix in a browser folder: check whether the other browser has the same problem and fix both in the same change, or file a follow-up todo and say so in the commit body.
+- **New behavior**: features land in both extensions together. A feature limited to one browser lives in that browser's folder, and the commit body and this file say why.
+- **New file**: a name must not exist in both `common/` and a browser folder (the build fails).
 
 ## Recent Fixes & Improvements
 - **Added Firefox support** with cross-browser compatibility
@@ -74,16 +80,22 @@ golinks/
 ## Testing
 
 ### Chrome
-Navigate to `https://go/github`, `https://go/cs/test`, or `https://go/help`. Check service worker console at `chrome://extensions/`.
+Run `pnpm build:chrome`, then load `dist/chrome` as an unpacked extension. Navigate to `https://go/github`, `https://go/cs/test`, or `https://go/help`. Check service worker console at `chrome://extensions/`.
 
 ### Firefox  
-Navigate to `go/github` (protocol-less works!), `https://go/cs/test`, or `https://go/help`. Check extension console at `about:debugging`.
+Run `pnpm build:firefox`, then load `dist/firefox` (or `pnpm load:firefox`, which builds first). Navigate to `go/github` (protocol-less works!), `https://go/cs/test`, or `https://go/help`. Check extension console at `about:debugging`.
+
+### Build tests
+```
+pnpm test:build
+```
+Fast (no browser): the build output holds `common/` and the browser folder byte for byte, a name clash is an error, every script a manifest, worker or page loads exists in the build, and `pnpm load:firefox` rebuilds `dist/firefox`. `pnpm test` runs it first.
 
 ### Firefox automated tests
 ```
-pnpm test
+pnpm test:firefox
 ```
-Installs a throwaway copy of `firefox/` as a temporary add-on in headless Firefox and exits non-zero on any failure. No dependencies are installed: it uses Node 24 (`node:test`, built-in `fetch`) and raw WebDriver against the system geckodriver. `pnpm test` is an alias for `pnpm test:firefox`.
+Builds `common/` + `firefox/` into a throwaway copy and installs it as a temporary add-on in headless Firefox and exits non-zero on any failure. No dependencies are installed: it uses Node 24 (`node:test`, built-in `fetch`) and raw WebDriver against the system geckodriver.
 
 **Prerequisites**: Node 24, pnpm, snap Firefox and `/snap/bin/geckodriver`. The copy is built in `tests/firefox/.build/` (git-ignored, deleted after the run) because snap-confined Firefox cannot read `/tmp`.
 
@@ -91,13 +103,13 @@ Installs a throwaway copy of `firefox/` as a temporary add-on in headless Firefo
 
 **Does not cover**: typing protocol-less `go/github` in the real address bar (WebDriver cannot drive it, so only the webRequest listener is exercised; WebDriver navigation stands in for typing, as neither has an originUrl), clicks from `data:` pages, the about:debugging UI, signed or permanent installs, Firefox Sync, private windows, Chrome.
 
-Set `GOLINKS_MUTATE=<name>` (names in `tests/firefox/lib/extension.mjs`) to break the copy on purpose and check that a test goes red.
+Set `GOLINKS_MUTATE=<name>` (names in `tests/firefox/lib/extension.mjs`; each names the built file it edits, e.g. `rules.js` or `background.js`) to break the copy on purpose and check that a test goes red.
 
 ### Chrome automated tests
 ```
 pnpm test:chrome
 ```
-Installs a throwaway copy of `chrome/` in headless Google Chrome and exits non-zero on any failure. `pnpm test` runs this suite after the Firefox one. No dependencies are installed: it uses Node 24 (`node:test`, built-in `fetch` and `WebSocket`) and talks to Chrome directly over the DevTools protocol, with no chromedriver.
+Builds `common/` + `chrome/` into a throwaway copy and installs it in headless Google Chrome and exits non-zero on any failure. `pnpm test` runs this suite after the Firefox one. No dependencies are installed: it uses Node 24 (`node:test`, built-in `fetch` and `WebSocket`) and talks to Chrome directly over the DevTools protocol, with no chromedriver.
 
 **Prerequisites**: Node 24, pnpm and `/usr/bin/google-chrome`. The copy is built in `tests/chrome/.build/` (git-ignored, deleted after the run).
 
@@ -113,7 +125,7 @@ Set `GOLINKS_MUTATE=<name>` (names in `tests/chrome/lib/extension.mjs`) to break
 ```
 pnpm load:firefox
 ```
-Installs `firefox/` as a temporary add-on into your everyday Firefox, replacing the about:debugging "Load Temporary Add-on" clicks. Run it again after an edit to reload the add-on. It talks to Firefox's Remote Debugging Protocol (what `web-ext run` uses) with `node:net` only. It does not use WebDriver/Marionette, so Firefox is not marked as automated. No dependencies. Firefox is run from `/snap/bin/firefox` (the `/usr/bin/firefox` wrapper changes desktop settings), and the add-on is installed straight from `firefox/`.
+Builds `dist/firefox/` (`common/` + `firefox/`) and installs it as a temporary add-on into your everyday Firefox, replacing the about:debugging "Load Temporary Add-on" clicks. Run it again after an edit to rebuild and reload the add-on. It talks to Firefox's Remote Debugging Protocol (what `web-ext run` uses) with `node:net` only. It does not use WebDriver/Marionette, so Firefox is not marked as automated. No dependencies. Firefox is run from `/snap/bin/firefox` (the `/usr/bin/firefox` wrapper changes desktop settings), and the add-on is installed from `dist/firefox/`, rebuilt on every run (an explicit `--addon <dir>` is installed as it is).
 
 **Why the server is closed again**: Firefox puts its window in "remote controlled" mode (striped URL bar, robot icon, `remotecontrol` attribute on the window) for as long as a DevTools socket listens (`gRemoteControl` in `browser.js`, fed by `DevToolsSocketStatus`). `--start-debugger-server` opens such a socket, so the old loader, which left it open, left Firefox in that state. Now the server is open only for the install: the script installs the add-on, then closes the listening socket from Firefox's parent process (`DevToolsServer.closeAllSocketListeners()`, on the same server object `DevToolsStartup` made). The window loses the cue at once and nothing listens on the port. The script closes every DevTools listener in that server, not only the one on `--port`, so a server left open by the old loader or by hand is closed too (the aim is a browser that is never left remote controlled; do not use this loader alongside other debugger clients). The installed temporary add-on stays until Firefox restarts. The close relies on Firefox internals (`DistinctSystemPrincipalLoader.sys.mjs` and the `@mozilla.org/devtools/startup-clh;1` component), verified on Firefox 157 only; if a Firefox update moves them the script exits non-zero naming them and the window stays remote controlled until it restarts. This was checked against Firefox 157's own source (`omni.ja`) and by reading the attribute over the protocol before and after.
 
@@ -127,7 +139,7 @@ Installs `firefox/` as a temporary add-on into your everyday Firefox, replacing 
 
 **Risk**: while the server is open, which is only for the few seconds of the install, any program on this computer (localhost only) can connect to the port, with no prompt, and fully control the browser. If the script cannot close the server it exits non-zero and says Firefox stays remote controlled until it is restarted. A temporary add-on is gone when Firefox restarts, so run the script again after each restart (the prefs go with it).
 
-**Options** (`pnpm load:firefox -- --help`): `--profile <dir>` / `GOLINKS_FF_PROFILE` (default: the default profile from `~/snap/firefox/common/.mozilla/firefox/profiles.ini`, else `~/.mozilla/firefox/profiles.ini`), `--port <n>` / `GOLINKS_FF_PORT` (default 6005), `--addon <dir>`, `--binary <path>` / `GOLINKS_FF_BIN`, `--set-prefs`, `--restart`, `--headless`.
+**Options** (`pnpm load:firefox -- --help`): `--profile <dir>` / `GOLINKS_FF_PROFILE` (default: the default profile from `~/snap/firefox/common/.mozilla/firefox/profiles.ini`, else `~/.mozilla/firefox/profiles.ini`), `--port <n>` / `GOLINKS_FF_PORT` (default 6005), `--addon <dir>` (default: build and use `dist/firefox`), `--binary <path>` / `GOLINKS_FF_BIN`, `--set-prefs`, `--restart`, `--headless`.
 
 **Errors**: no profile (lists where it looked), port held by something that is not Firefox's debugger, Firefox's own message when the install is rejected, Firefox refusing to quit, and the server not closing afterwards.
 

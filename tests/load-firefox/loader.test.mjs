@@ -10,13 +10,14 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import net from "node:net";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
+import { build } from "../../scripts/build.mjs";
 import { RdpClient } from "../../scripts/lib/rdp.mjs";
 import { applyPrefs, missingPrefs, removePrefs } from "../../scripts/lib/prefs.mjs";
 import { runningPid } from "../../scripts/lib/profiles.mjs";
@@ -112,7 +113,7 @@ before(async () => {
   await new Promise((r) => hitServer.listen(0, "127.0.0.1", r));
   hitPort = hitServer.address().port;
   mkdirSync(PROFILE, { recursive: true });
-  cpSync(path.join(REPO, "firefox"), ADDON, { recursive: true });
+  build("firefox", ADDON);
   writeAddon("GoLinks loader test v1");
 });
 after(async () => {

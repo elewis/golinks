@@ -1,10 +1,11 @@
-// Builds the throwaway copy of firefox/ that the tests install. firefox/
-// itself is never modified.
+// Builds the throwaway copy of the Firefox extension (common/ + firefox/, via
+// scripts/build.mjs) that the tests install. Neither folder is modified.
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyMutation } from "../../lib/mutate.mjs";
+import { build } from "../../../scripts/build.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "../../..");
@@ -17,14 +18,14 @@ const LOADED_LINE = 'console.debug("GoLinks: extension loaded");';
 // Deliberate breakages for showing that a check can go red. Select one with
 // GOLINKS_MUTATE=<name> pnpm test. name -> [file, old, new]
 export const MUTATIONS = {
-  "no-load-log": ["background.js", LOADED_LINE, ""],
-  "js-error": ["background.js", LOADED_LINE, `${LOADED_LINE} undefinedFunction();`],
-  "no-rules": ["background.js", "addRules: rules_to_add,", "addRules: [],"],
+  "no-load-log": ["rules.js", LOADED_LINE, ""],
+  "js-error": ["rules.js", LOADED_LINE, `${LOADED_LINE} undefinedFunction();`],
+  "no-rules": ["rules.js", "addRules: rules_to_add,", "addRules: [],"],
   "drop-gh-link": ["links.js", '    gh: "https://github.com",\n', ""],
   "bad-param-link": ["links.js", "https://github.com/search?q=%s", "https://example.invalid/?q=%s"],
-  "no-help-rule": ["background.js", 'urlFilter: "||go/help|"', 'urlFilter: "||go/helpx|"'],
-  "no-root-rule": ["background.js", 'urlFilter: "||go/|"', 'urlFilter: "||go/rootx|"'],
-  "no-notfound-rule": ["background.js", 'urlFilter: "||go/*"', 'urlFilter: "||go/zzz*"'],
+  "no-help-rule": ["rules.js", 'urlFilter: "||go/help|"', 'urlFilter: "||go/helpx|"'],
+  "no-root-rule": ["rules.js", 'urlFilter: "||go/|"', 'urlFilter: "||go/rootx|"'],
+  "no-notfound-rule": ["rules.js", 'urlFilter: "||go/*"', 'urlFilter: "||go/zzz*"'],
   // Simulates a regression where "go/" anywhere in a query value (not just at its start) is redirected.
   "hijack-go-substring": ["background.js", "query.match(/^go\\/", "query.match(/go\\/"],
   // Simulates losing the narrowing: link clicks and form submits from a page are redirected too.
@@ -32,7 +33,7 @@ export const MUTATIONS = {
   "no-interception-cap": ["background.js", "interceptions.slice(-MAX_INTERCEPTIONS)", "interceptions"],
   "interception-race": ["background.js", "interceptionsQueue = interceptionsQueue\n    .then(", "interceptionsQueue = Promise.resolve()\n    .then("],
   "delete-noop": ["index.js", "delete current[golink];", ""],
-  "no-storage-refresh": ["background.js", 'namespace === "sync" &&', 'namespace === "never" &&'],
+  "no-storage-refresh": ["rules.js", 'namespace === "sync" &&', 'namespace === "never" &&'],
 };
 
 // WebDriver cannot script moz-extension:// pages, so the copy gets a test
@@ -51,7 +52,7 @@ export function buildExtension() {
   const root = path.join(BUILD, `${process.pid}-${randomBytes(3).toString("hex")}`);
   const dir = path.join(root, "ext");
   mkdirSync(root, { recursive: true });
-  cpSync(path.join(REPO, "firefox"), dir, { recursive: true });
+  build("firefox", dir);
 
   for (const f of ["test.html", "test.js"]) {
     cpSync(path.join(HERE, "../harness", f), path.join(dir, f));
