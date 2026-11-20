@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Installs ./firefox/ as a temporary add-on into a running (or freshly
 // launched) Firefox over its remote debugging protocol. Run it again after an
-// edit to reload the add-on. See the "Dev loader" section of CLAUDE.md.
+// edit to reload the add-on. The debugger server is only open while the install
+// runs: it is closed afterwards, because an open server makes Firefox show its
+// "remote controlled" look. See the "Dev loader" section of CLAUDE.md.
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
@@ -10,8 +12,8 @@ import readline from "node:readline/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { applyPrefs, missingPrefs } from "./lib/prefs.mjs";
-import { findProfile, runningPid } from "./lib/profiles.mjs";
+import { applyPrefs, conflictingPrefs, existingPrefs, missingPrefs, movePrefsScript, removePrefs } from "./lib/prefs.mjs";
+import { acceptsForwardedCommands, findProfile, runningPid } from "./lib/profiles.mjs";
 import { RdpClient } from "./lib/rdp.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,7 +29,7 @@ Installs firefox/ as a temporary add-on. Run it again to reload after an edit.
   --binary <path>   Firefox executable          (env GOLINKS_FF_BIN; default: /snap/bin/firefox, else firefox)
   --set-prefs       allow adding the debugger prefs to the profile's user.js without asking
   --restart         allow quitting a running Firefox that has no debugger server, without asking
-  --headless        launch Firefox headless (used by the tests)
+  --headless        launch Firefox headless and isolated with --no-remote (used by the tests)
   -h, --help        show this help
 
 Without --set-prefs / --restart the script asks on the terminal; with no terminal it refuses.`;
@@ -80,45 +82,97 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
     const addonId = JSON.parse(readFileSync(path.join(addonDir, "manifest.json"), "utf8")).browser_specific_settings?.gecko?.id;
     const profile = findProfile({ home: os.homedir(), override: args.profile ?? env.GOLINKS_FF_PROFILE });
 
-    // 1. The normal edit-reload loop: Firefox already has the debugger server up.
+    // 1. Firefox already has the debugger server open: install, then close it.
     let client = await tryConnect(port);
     if (!client) {
-      // 2/3. Not reachable: start, or restart, Firefox with the server.
       const pid = runningPid(profile.dir);
-      const prefs = missingPrefs(profile.dir);
       say(`Profile: ${profile.dir}`);
-      if (prefs.length > 0) {
-        say("The debugger server needs these prefs, which this profile does not have:");
-        for (const p of prefs) say(`  ${p.name} = ${p.value}   (${p.why})`);
-        say("While the server runs, any program on this computer can connect to port " + port + " and fully control Firefox.");
-        if (!(await consent(args["set-prefs"], `Add them to ${path.join(profile.dir, "user.js")}?`))) {
-          throw new UserError("Not changing the profile. Re-run with --set-prefs (or answer y) to allow it.");
+      // 2. Firefox is running: ask it to open the server again, no restart. This works when the
+      //    prefs are already in force in that session (an earlier run of this script put them there).
+      if (pid && acceptsForwardedCommands(pid)) {
+        say(`Firefox is running (pid ${pid}); asking it to open the debugger server on port ${port} for the install...`);
+        client = await reopen({ binary: args.binary ?? env.GOLINKS_FF_BIN, profileDir: profile.dir, port, headless: args.headless });
+        if (client && runningPid(profile.dir) !== pid) {
+          client.close();
+          throw new UserError(`Firefox's pid changed from ${pid} to ${runningPid(profile.dir)} while reopening the debugger server; not installing. Check for a second Firefox on this profile.`);
         }
+        if (!client) say("It did not open the server (the debugger prefs are probably not in force in that session).");
+      } else if (pid) {
+        say(`Firefox is running (pid ${pid}) but cannot take a forwarded command (started with --no-remote or headless, or not readable).`);
       }
-      if (pid) {
-        say(`Firefox is running (pid ${pid}) without a debugger server on port ${port}.`);
-        warnAboutSessionRestore(profile.dir, say);
-        if (!(await consent(args.restart, "Quit it and relaunch it with the debugger server?"))) {
-          throw new UserError("Not restarting Firefox. Re-run with --restart (or answer y) to allow it.");
+      // 3. Otherwise start, or restart, Firefox with the server.
+      if (!client) {
+        const conflicts = conflictingPrefs(profile.dir);
+        if (conflicts.length > 0) {
+          throw new UserError(`This profile sets ${conflicts.map((p) => `${p.name} = ${!p.value}`).join(", ")}; the loader will not override that. Remove the line or set it to ${conflicts.map((p) => p.value).join(", ")} yourself.`);
         }
-        await quit(pid, profile.dir);
-      }
-      const written = applyPrefs(profile.dir, prefs);
-      if (written.length > 0) {
-        say(`Added to ${path.join(profile.dir, "user.js")}:`);
+        const kept = existingPrefs(profile.dir);
+        if (kept.length > 0) {
+          say(`These prefs are already set in your profile (by you, or by an earlier version of this script) and are left as they are:`);
+          for (const p of kept) say(`  ${p.name} = ${p.value}`);
+          say("To remove them, delete those lines from user.js and prefs.js while Firefox is not running.");
+        }
+        const prefs = missingPrefs(profile.dir);
+        if (prefs.length > 0) {
+          say("The debugger server needs these prefs. They are set only for this run: written to user.js for startup,");
+          say("removed again as soon as Firefox is up, and moved to Firefox's defaults so they are never saved. A restart of Firefox drops them.");
+          for (const p of prefs) say(`  ${p.name} = ${p.value}   (${p.why})`);
+          say("While the server is open (only during the install), any program on this computer can connect to port " + port + " and fully control Firefox.");
+          if (!(await consent(args["set-prefs"], `Set them temporarily in ${path.join(profile.dir, "user.js")}?`))) {
+            throw new UserError("Not changing the profile. Re-run with --set-prefs (or answer y) to allow it.");
+          }
+        }
+        if (pid) {
+          say(`Firefox is running (pid ${pid}) without a debugger server on port ${port}.`);
+          warnAboutSessionRestore(profile.dir, say);
+          if (!(await consent(args.restart, "Quit it and relaunch it with the debugger server?"))) {
+            throw new UserError("Not restarting Firefox. Re-run with --restart (or answer y) to allow it.");
+          }
+          await quit(pid, profile.dir);
+        }
+        const userJs = path.join(profile.dir, "user.js");
+        const created = !existsSync(userJs);
+        const written = applyPrefs(profile.dir, prefs);
+        if (written.length > 0) say(`Temporarily added to ${userJs}:`);
         for (const l of written) say(`  ${l}`);
+        const undo = () => removePrefs(profile.dir, written, created);
+        const onSignal = (sig) => (undo(), process.kill(process.pid, sig));
+        process.once("SIGINT", onSignal);
+        process.once("SIGTERM", onSignal);
+        try {
+          client = await launch({ binary: args.binary ?? env.GOLINKS_FF_BIN, profileDir: profile.dir, port, headless: args.headless });
+          // Firefox has read user.js by now: keep the values for this session only.
+          if (prefs.length > 0) await client.evaluateChrome(movePrefsScript(prefs));
+        } catch (e) {
+          // Never leave the server open behind a failure.
+          if (client) await client.closeServer().catch(() => client.close());
+          throw e;
+        } finally {
+          undo();
+          process.off("SIGINT", onSignal);
+          process.off("SIGTERM", onSignal);
+        }
+        if (written.length > 0) say(`Removed them from ${userJs} again; they now live only in this Firefox session.`);
       }
-      client = await launch({ binary: args.binary ?? env.GOLINKS_FF_BIN, profileDir: profile.dir, port, headless: args.headless });
     }
 
+    let failure;
     try {
       const addon = await client.installTemporaryAddon(addonDir);
       const listed = (await client.listAddons()).find((a) => a.id === (addon?.id ?? addonId));
       if (!listed?.temporary) throw new UserError(`Firefox accepted the install but does not list ${addonId} as a temporary add-on.`);
       say(`Loaded ${listed.name} (${listed.id}) from ${addonDir}`);
-    } finally {
-      client.close();
+    } catch (e) {
+      failure = e;
     }
+    // Always close the server, even after a failed install, so Firefox is never left remote controlled.
+    try {
+      await closeServer(client, port, say);
+    } catch (e) {
+      if (!failure) throw e;
+      stderr.write(`${e.message}\n`);
+    }
+    if (failure) throw failure;
     return 0;
   } catch (e) {
     stderr.write(`${e instanceof UserError ? "" : "Unexpected error: "}${e.message}\n`);
@@ -135,6 +189,58 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
     }
   }
 
+  /** Close Firefox's debugger server so it is not remote controlled; say so loudly if that fails. */
+  async function closeServer(client, p, say) {
+    try {
+      await client.closeServer();
+    } catch (e) {
+      client.close();
+      throw new UserError(`Could not close the debugger server on port ${p} (${e.message}). Firefox stays remote controlled until you restart it.`);
+    }
+    for (let i = 0; i < 25; i++) {
+      const again = await tryConnect(p);
+      if (!again) {
+        say(`Closed the debugger server on port ${p}; Firefox is no longer remote controlled.`);
+        return;
+      }
+      again.close();
+      await sleep(200);
+    }
+    throw new UserError(`The debugger server on port ${p} is still open. Firefox stays remote controlled until you restart it.`);
+  }
+
+  /**
+   * Ask the Firefox already running on this profile to open the server, via a forwarded command line.
+   * A Firefox that takes it makes the child exit at once with the server up. One that does not (started
+   * with --no-remote, or headless) makes the child exit at once too, with a message, so a few more
+   * seconds of polling after the exit is all the wait needed. The child gets its own process group so
+   * a straggler (the snap wrapper) can be killed whole.
+   */
+  async function reopen({ binary, profileDir, port: p, headless }) {
+    const exe = binary ?? (existsSync("/snap/bin/firefox") ? "/snap/bin/firefox" : "firefox");
+    const flags = ["--profile", profileDir, "--start-debugger-server", String(p)];
+    if (headless) flags.unshift("--headless");
+    const child = spawn(exe, flags, { detached: true, stdio: "ignore" });
+    let exited = null; // time of exit
+    child.once("exit", () => (exited = Date.now()));
+    child.once("error", () => (exited = Date.now()));
+    const start = Date.now();
+    try {
+      for (;;) {
+        const c = await tryConnect(p);
+        if (c) return c;
+        if (exited ? Date.now() - exited > 3000 : Date.now() - start > 15_000) return null;
+        await sleep(200);
+      }
+    } finally {
+      if (exited === null) {
+        try {
+          process.kill(-child.pid);
+        } catch {}
+      }
+    }
+  }
+
   async function quit(pid, profileDir) {
     say(`Quitting Firefox (pid ${pid}) with SIGTERM, which is a normal shutdown...`);
     process.kill(pid, "SIGTERM");
@@ -147,8 +253,10 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
 
   async function launch({ binary, profileDir, port: p, headless }) {
     const exe = binary ?? (existsSync("/snap/bin/firefox") ? "/snap/bin/firefox" : "firefox");
-    const flags = ["--no-remote", "--profile", profileDir, "--start-debugger-server", String(p)];
-    if (headless) flags.unshift("--headless");
+    // A normal window keeps Firefox's remoting, so a later run can ask it to reopen the server and
+    // links from other programs still reach it. Headless (the tests) must stay out of any other instance.
+    const flags = ["--profile", profileDir, "--start-debugger-server", String(p)];
+    if (headless) flags.unshift("--headless", "--no-remote");
     say(`Launching ${exe} with the debugger server on 127.0.0.1:${p}...`);
     const child = spawn(exe, flags, { detached: true, stdio: "ignore" });
     let exitCode;

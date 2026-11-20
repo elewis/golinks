@@ -1,5 +1,5 @@
 // The Firefox prefs the debugger server needs, read from and added to a profile.
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 export const REQUIRED_PREFS = [
@@ -21,9 +21,25 @@ function readPrefs(file) {
   return prefs;
 }
 
+function effectivePrefs(profileDir) {
+  return new Map([...readPrefs(path.join(profileDir, "prefs.js")), ...readPrefs(path.join(profileDir, "user.js"))]);
+}
+
+/** Required prefs the profile already has set the wanted way (by the user, or left by an older version of the loader). */
+export function existingPrefs(profileDir) {
+  const effective = effectivePrefs(profileDir);
+  return REQUIRED_PREFS.filter((p) => effective.get(p.name) === p.value);
+}
+
+/** Required prefs the profile sets to the opposite value. The loader will not override those. */
+export function conflictingPrefs(profileDir) {
+  const effective = effectivePrefs(profileDir);
+  return REQUIRED_PREFS.filter((p) => effective.has(p.name) && effective.get(p.name) !== p.value);
+}
+
 /** Required prefs whose effective value (user.js over prefs.js) is not the wanted one. */
 export function missingPrefs(profileDir) {
-  const effective = new Map([...readPrefs(path.join(profileDir, "prefs.js")), ...readPrefs(path.join(profileDir, "user.js"))]);
+  const effective = effectivePrefs(profileDir);
   return REQUIRED_PREFS.filter((p) => effective.get(p.name) !== p.value);
 }
 
@@ -36,4 +52,34 @@ export function applyPrefs(profileDir, prefs) {
   const lead = existing && !existing.endsWith("\n") ? "\n" : "";
   appendFileSync(file, `${lead}${lines.join("\n")}\n`);
   return lines;
+}
+
+/**
+ * Undo applyPrefs: remove exactly the lines it returned (user.js is only read
+ * at startup, so once Firefox is up they are no longer needed). `created` says
+ * the loader made user.js; it is deleted again if nothing else is left in it.
+ */
+export function removePrefs(profileDir, lines, created) {
+  const file = path.join(profileDir, "user.js");
+  if (!existsSync(file) || lines.length === 0) return;
+  const kept = readFileSync(file, "utf8").split("\n").filter((l) => !lines.includes(l));
+  const text = kept.join("\n");
+  if (created && text.trim() === "") unlinkSync(file);
+  else writeFileSync(file, text);
+}
+
+/**
+ * Chrome-side script that moves each pref from the user branch (which Firefox
+ * saves to prefs.js) to the default branch (which it never saves). The values
+ * stay in force for this session, so the debugger server can be reopened,
+ * and are gone when Firefox quits.
+ */
+export function movePrefsScript(prefs) {
+  return `(function () {
+  for (const [name, value] of ${JSON.stringify(prefs.map((p) => [p.name, p.value]))}) {
+    if (Services.prefs.prefHasUserValue(name)) Services.prefs.clearUserPref(name);
+    Services.prefs.getDefaultBranch("").setBoolPref(name, value);
+  }
+  return "moved";
+})()`;
 }

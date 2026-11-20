@@ -1,6 +1,7 @@
 // Minimal client for Firefox's Remote Debugging Protocol (the one web-ext and
 // about:debugging use), on node:net only. A packet is `<byte length>:<json>`.
 import net from "node:net";
+import { setTimeout as sleep } from "node:timers/promises";
 
 export function encodePacket(obj) {
   const json = Buffer.from(JSON.stringify(obj), "utf8");
@@ -132,7 +133,64 @@ export class RdpClient {
     return addons.map((a) => ({ id: a.id, name: a.name, temporary: a.temporarilyInstalled === true }));
   }
 
+  /** Run JavaScript with chrome privileges in Firefox's parent process; resolves to the result's grip. */
+  async evaluateChrome(text, timeout = 30_000) {
+    const { processDescriptor } = await this.request("root", "getProcess", { id: 0 });
+    const { process } = await this.request(processDescriptor.actor, "getTarget");
+    const consoleActor = process.consoleActor;
+    await this.request(consoleActor, "evaluateJSAsync", { text });
+    const reply = await this.#next(consoleActor, timeout);
+    if (reply.exception) {
+      const error = new Error(`Firefox could not run the script: ${reply.exceptionMessage ?? JSON.stringify(reply.exception.preview ?? reply.exception)}`);
+      error.scriptError = true;
+      throw error;
+    }
+    return reply.result;
+  }
+
+  /**
+   * Close the debugger server's listening socket, so the window loses the
+   * "remote controlled" look and no program can connect any more. Firefox drops
+   * every connection with it, this one included, so this resolves once that
+   * has happened. A temporary add-on installed through the server stays.
+   */
+  async closeServer(timeout = 10_000) {
+    const dropped = new Promise((resolve) => this.#sock.once("close", resolve));
+    try {
+      await this.evaluateChrome(CLOSE_SERVER_SCRIPT);
+    } catch (e) {
+      // The script ran and was refused: report it. Any other failure is Firefox
+      // dropping the connection as the close takes effect, which is the success
+      // case; the caller checks the port is really refused.
+      if (e.scriptError) {
+        throw new Error(`${e.message} (the close relies on Firefox internals: DistinctSystemPrincipalLoader.sys.mjs and the devtools-startup-clh component, checked on Firefox 157)`);
+      }
+    }
+    await Promise.race([dropped, sleep(timeout).then(() => Promise.reject(new Error("Firefox did not close its debugger server")))]);
+  }
+
   close() {
     this.#sock.destroy();
   }
 }
+
+// Firefox shows its "remote control" cue (striped URL bar, robot icon) for as
+// long as a DevTools socket listens (browser.js, gRemoteControl). The server
+// that `--start-debugger-server` starts lives in a private loader that
+// DevToolsStartup owns, so ask for that same loader to reach the same server.
+// The close runs on the next tick so this call can still return its result.
+export const CLOSE_SERVER_SCRIPT = `(function () {
+  const { useDistinctSystemPrincipalLoader, releaseDistinctSystemPrincipalLoader } = ChromeUtils.importESModule(
+    "resource://devtools/shared/loader/DistinctSystemPrincipalLoader.sys.mjs", { global: "shared" });
+  const startup = Cc["@mozilla.org/devtools/startup-clh;1"].getService().wrappedJSObject;
+  const loader = useDistinctSystemPrincipalLoader(startup);
+  try {
+    const { DevToolsServer } = loader.require("resource://devtools/server/devtools-server.js");
+    const listening = DevToolsServer.listeningSockets;
+    if (!listening) throw new Error("no debugger server is listening in DevToolsStartup's loader");
+    Services.tm.dispatchToMainThread(() => DevToolsServer.closeAllSocketListeners());
+    return listening;
+  } finally {
+    releaseDistinctSystemPrincipalLoader(startup);
+  }
+})()`;

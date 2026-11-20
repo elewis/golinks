@@ -74,3 +74,17 @@ export function runningPid(profileDir) {
     return e.code === "EPERM" ? pid : null;
   }
 }
+
+/**
+ * Whether a running Firefox can take a command line forwarded to it. One started with
+ * --no-remote or --headless cannot, and a second `firefox` run against it would only open a
+ * "Firefox is already running" window. Unreadable means unknown, which counts as no.
+ */
+export function acceptsForwardedCommands(pid) {
+  try {
+    const args = readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0");
+    return !args.some((a) => /^--?(no-remote|headless)$/.test(a));
+  } catch {
+    return false;
+  }
+}

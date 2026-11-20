@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import net from "node:net";
 import { test } from "node:test";
-import { PacketParser, RdpClient, encodePacket } from "../../scripts/lib/rdp.mjs";
+import { CLOSE_SERVER_SCRIPT, PacketParser, RdpClient, encodePacket } from "../../scripts/lib/rdp.mjs";
 
 test("encodePacket prefixes the byte length, not the character count", () => {
   assert.equal(encodePacket({ a: "é" }).toString(), '10:{"a":"é"}');
@@ -96,4 +96,63 @@ test("connect rejects when the server stays silent", async () => {
   } finally {
     server.close();
   }
+});
+
+/** A fake Firefox for closeServer: answers the process/target/console lookups, then runs `onEval(sock, send)`. */
+async function fakeChromeServer(onEval) {
+  const server = net.createServer((sock) => {
+    const parser = new PacketParser();
+    const send = (o) => sock.write(encodePacket(o));
+    send({ from: "root", applicationType: "browser" });
+    sock.on("error", () => {});
+    sock.on("data", (d) => {
+      for (const req of parser.push(d)) {
+        if (req.type === "getProcess") send({ from: "root", processDescriptor: { actor: "pd1" } });
+        else if (req.type === "getTarget") send({ from: "pd1", process: { consoleActor: "con1" } });
+        else if (req.type === "evaluateJSAsync") {
+          send({ from: "con1", resultID: "1" });
+          onEval(sock, send, req);
+        }
+      }
+    });
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  return { server, port: server.address().port };
+}
+
+test("closeServer succeeds when Firefox drops the connection cleanly", async () => {
+  const { server, port } = await fakeChromeServer((sock) => setTimeout(() => sock.end(), 20));
+  try {
+    const client = await RdpClient.connect(port);
+    await client.closeServer();
+  } finally {
+    server.close();
+  }
+});
+
+test("closeServer succeeds when the connection is reset instead of closed", async () => {
+  const { server, port } = await fakeChromeServer((sock) => setTimeout(() => sock.resetAndDestroy(), 20));
+  try {
+    const client = await RdpClient.connect(port);
+    await client.closeServer();
+  } finally {
+    server.close();
+  }
+});
+
+test("closeServer fails fast, naming the Firefox internals, when the script reports it could not close anything", async () => {
+  const { server, port } = await fakeChromeServer((sock, send) =>
+    send({ from: "con1", type: "evaluationResult", resultID: "1", exception: { preview: { message: "no debugger server is listening" } }, exceptionMessage: "no debugger server is listening" }),
+  );
+  try {
+    const client = await RdpClient.connect(port);
+    await assert.rejects(client.closeServer(), /no debugger server is listening[\s\S]*DistinctSystemPrincipalLoader/);
+    client.close();
+  } finally {
+    server.close();
+  }
+});
+
+test("the close script refuses to run when no socket is listening", async () => {
+  assert.match(CLOSE_SERVER_SCRIPT, /if \(!listening\) throw/);
 });
