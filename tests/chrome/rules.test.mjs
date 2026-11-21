@@ -14,7 +14,8 @@ before(async () => {
 });
 after(() => fx?.stop());
 
-const errors = () => fx.chrome.workerLogs.filter((l) => l.includes("JavaScript error") || l.startsWith("console.error"));
+const errors = () =>
+  fx.chrome.workerLogs.filter((l) => l.includes("JavaScript error") || l.startsWith("console.error"));
 
 async function finalUrl(url, predicate) {
   await fx.chrome.navigate(page, url);

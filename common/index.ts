@@ -1,5 +1,8 @@
 (async () => {
-  const result: { defaultLinks?: Links; localLinks?: Links } = await api.storage.sync.get(["defaultLinks", "localLinks"]);
+  const result: { defaultLinks?: Links; localLinks?: Links } = await api.storage.sync.get([
+    "defaultLinks",
+    "localLinks",
+  ]);
 
   const defaultLinks = result.defaultLinks || {};
   const localLinks = result.localLinks || {};
@@ -67,7 +70,8 @@
   initLinkForm(byId("add-link"));
   // The shared form (and deletes from other pages) change the stored links.
   api.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === "sync" && changes.localLinks) populateUserLinks((changes.localLinks.newValue as Links | undefined) || {});
+    if (namespace === "sync" && changes.localLinks)
+      populateUserLinks((changes.localLinks.newValue as Links | undefined) || {});
   });
 
   populateUserLinks(localLinks);

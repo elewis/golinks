@@ -28,7 +28,8 @@ test("get_rule: a %s link is a regex redirect substituting capture group 1", () 
   assert.equal(rule.condition.urlFilter, undefined);
 });
 
-const paramRe = (name) => new RegExp(sb().get(`get_rule(${JSON.stringify(name)}, "https://x/%s")`).condition.regexFilter);
+const paramRe = (name) =>
+  new RegExp(sb().get(`get_rule(${JSON.stringify(name)}, "https://x/%s")`).condition.regexFilter);
 const staticRe = (name) => new RegExp(sb().get(`get_rule(${JSON.stringify(name)}, "https://x")`).condition.regexFilter);
 
 test("%s link: go/csx does not match the cs rule", () => {
@@ -88,9 +89,18 @@ test("updateRulesWithLinks: link rules, then help, root and not-found, ids 1..N"
   const { fake, get } = sb();
   await get('updateRulesWithLinks({ gh: "https://github.com", cs: "https://s/%s" })');
   const rules = fake.rules();
-  assert.deepEqual(rules.map((r) => r.id), [1, 2, 3, 4, 5]);
-  assert.deepEqual(rules.map((r) => r.priority), [5, 5, 2, 2, 1]);
-  assert.deepEqual(rules.slice(2, 4).map((r) => r.condition.urlFilter), ["||go/help|", "||go/|"]);
+  assert.deepEqual(
+    rules.map((r) => r.id),
+    [1, 2, 3, 4, 5],
+  );
+  assert.deepEqual(
+    rules.map((r) => r.priority),
+    [5, 5, 2, 2, 1],
+  );
+  assert.deepEqual(
+    rules.slice(2, 4).map((r) => r.condition.urlFilter),
+    ["||go/help|", "||go/|"],
+  );
   assert.equal(rules[2].action.redirect.extensionPath, "/index.html");
   assert.equal(rules[4].condition.regexFilter, "^https?://go/([^/?#]*)(?:[/?#].*)?$");
   assert.equal(rules[4].action.redirect.regexSubstitution, "chrome-extension://fake-id/notfound.html?name=\\1");
@@ -142,7 +152,9 @@ const countSets = (fake) => {
 test("getLinks: stored defaults with keys in another order (Chrome sorts them) are not rewritten", async () => {
   const { fake, get } = sb();
   await get("getLinks()");
-  const sorted = Object.fromEntries(Object.entries(fake.store.sync.defaultLinks).sort(([a], [b]) => a.localeCompare(b)));
+  const sorted = Object.fromEntries(
+    Object.entries(fake.store.sync.defaultLinks).sort(([a], [b]) => a.localeCompare(b)),
+  );
   assert.notDeepEqual(Object.keys(sorted), Object.keys(fake.store.sync.defaultLinks));
   fake.store.sync.defaultLinks = sorted;
   const sets = countSets(fake);
@@ -176,13 +188,21 @@ test("get_rule: the name is matched lowercased", () => {
 test("get_rule: a %s parameter keeps its case (the substitution does not touch it)", () => {
   const rule = sb().get('get_rule("CS", "https://x/?q=%s")');
   const m = new RegExp(rule.condition.regexFilter, "i").exec("https://go/cs/FooBar");
-  assert.equal("https://go/cs/FooBar".replace(new RegExp(rule.condition.regexFilter, "i"), rule.action.redirect.regexSubstitution.replace("\\1", "$1")), "https://x/?q=FooBar");
+  assert.equal(
+    "https://go/cs/FooBar".replace(
+      new RegExp(rule.condition.regexFilter, "i"),
+      rule.action.redirect.regexSubstitution.replace("\\1", "$1"),
+    ),
+    "https://x/?q=FooBar",
+  );
   assert.equal(m[1], "FooBar");
 });
 
 test("mergeLinks: keys are lowercased, local over default", () => {
   const { get } = sb();
-  const out = JSON.parse(JSON.stringify(get('mergeLinks({ gh: "https://d", Cs: "https://c" }, { GH: "https://mine" })')));
+  const out = JSON.parse(
+    JSON.stringify(get('mergeLinks({ gh: "https://d", Cs: "https://c" }, { GH: "https://mine" })')),
+  );
   assert.deepEqual(out, { gh: "https://mine", cs: "https://c" });
 });
 
@@ -212,22 +232,34 @@ test("refreshRules: one rule per lowercased name, so no two rules match the same
   const { fake, get } = sb();
   fake.store.sync.localLinks = { GH: "https://mine", Docs: "https://d", docs: "https://d2" };
   await get("refreshRules()");
-  const filters = fake.rules().map((r) => r.condition.regexFilter).filter((f) => f?.startsWith("^https?://go/") && !f.includes("[^/"));
+  const filters = fake
+    .rules()
+    .map((r) => r.condition.regexFilter)
+    .filter((f) => f?.startsWith("^https?://go/") && !f.includes("[^/"));
   assert.equal(new Set(filters).size, filters.length);
   assert.equal(filters.filter((f) => f === "^https?://go/gh$").length, 1);
   assert.equal(filters.filter((f) => f === "^https?://go/docs$").length, 1);
-  assert.equal(fake.rules().find((r) => r.condition.regexFilter === "^https?://go/gh$").action.redirect.url, "https://mine");
+  assert.equal(
+    fake.rules().find((r) => r.condition.regexFilter === "^https?://go/gh$").action.redirect.url,
+    "https://mine",
+  );
 });
 
 test("refreshRules: overlapping calls never interleave and end on the latest links", async () => {
   const { fake, get } = sb();
   // Hold every dynamic-rule write so that interleaving would be visible.
-  let active = 0, maxActive = 0;
+  let active = 0,
+    maxActive = 0;
   const real = fake.api.declarativeNetRequest.updateDynamicRules;
   fake.api.declarativeNetRequest.updateDynamicRules = async (a) => {
-    active++; maxActive = Math.max(maxActive, active);
+    active++;
+    maxActive = Math.max(maxActive, active);
     await new Promise((r) => setTimeout(r, 5));
-    try { return await real(a); } finally { active--; }
+    try {
+      return await real(a);
+    } finally {
+      active--;
+    }
   };
   const runs = [];
   for (let i = 0; i < 8; i++) {
@@ -244,7 +276,9 @@ test("refreshRules: overlapping calls never interleave and end on the latest lin
 test("refreshRules: a failed update does not block the next one", async () => {
   const { fake, get, logs } = sb();
   const real = fake.api.declarativeNetRequest.updateDynamicRules;
-  fake.api.declarativeNetRequest.updateDynamicRules = async () => { throw new Error("boom"); };
+  fake.api.declarativeNetRequest.updateDynamicRules = async () => {
+    throw new Error("boom");
+  };
   await assert.rejects(get("refreshRules()"), /boom/);
   fake.api.declarativeNetRequest.updateDynamicRules = real;
   await get("refreshRules()");

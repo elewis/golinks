@@ -3,7 +3,15 @@ import { appendFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } 
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { REQUIRED_PREFS, applyPrefs, conflictingPrefs, existingPrefs, missingPrefs, movePrefsScript, removePrefs } from "../../scripts/lib/prefs.mts";
+import {
+  REQUIRED_PREFS,
+  applyPrefs,
+  conflictingPrefs,
+  existingPrefs,
+  missingPrefs,
+  movePrefsScript,
+  removePrefs,
+} from "../../scripts/lib/prefs.mts";
 
 const dir = () => mkdtempSync(path.join(os.tmpdir(), "golinks-prof-"));
 
@@ -14,16 +22,28 @@ test("an empty profile is missing every required pref", () => {
 test("prefs already set in prefs.js or user.js are not missing", () => {
   const d = dir();
   writeFileSync(path.join(d, "prefs.js"), 'user_pref("devtools.debugger.remote-enabled", true);\n');
-  assert.deepEqual(missingPrefs(d).map((p) => p.name), ["devtools.debugger.prompt-connection", "devtools.chrome.enabled"]);
-  writeFileSync(path.join(d, "user.js"), 'user_pref("devtools.debugger.prompt-connection", false);\nuser_pref("devtools.chrome.enabled", true);\n');
+  assert.deepEqual(
+    missingPrefs(d).map((p) => p.name),
+    ["devtools.debugger.prompt-connection", "devtools.chrome.enabled"],
+  );
+  writeFileSync(
+    path.join(d, "user.js"),
+    'user_pref("devtools.debugger.prompt-connection", false);\nuser_pref("devtools.chrome.enabled", true);\n',
+  );
   assert.deepEqual(missingPrefs(d), []);
 });
 
 test("user.js overrides prefs.js", () => {
   const d = dir();
-  writeFileSync(path.join(d, "prefs.js"), 'user_pref("devtools.debugger.remote-enabled", true);\nuser_pref("devtools.debugger.prompt-connection", false);\nuser_pref("devtools.chrome.enabled", true);\n');
+  writeFileSync(
+    path.join(d, "prefs.js"),
+    'user_pref("devtools.debugger.remote-enabled", true);\nuser_pref("devtools.debugger.prompt-connection", false);\nuser_pref("devtools.chrome.enabled", true);\n',
+  );
   writeFileSync(path.join(d, "user.js"), 'user_pref("devtools.debugger.remote-enabled", false);\n');
-  assert.deepEqual(missingPrefs(d).map((p) => p.name), ["devtools.debugger.remote-enabled"]);
+  assert.deepEqual(
+    missingPrefs(d).map((p) => p.name),
+    ["devtools.debugger.remote-enabled"],
+  );
 });
 
 test("applyPrefs appends to user.js, keeps existing content, and returns the lines it wrote", () => {
@@ -77,15 +97,27 @@ test("removePrefs leaves a line the user has added since, and tolerates a missin
 
 test("conflictingPrefs finds a required pref the profile sets to the other value", () => {
   const d = dir();
-  writeFileSync(path.join(d, "prefs.js"), 'user_pref("devtools.debugger.remote-enabled", false);\nuser_pref("devtools.chrome.enabled", true);\n');
-  assert.deepEqual(conflictingPrefs(d).map((p) => p.name), ["devtools.debugger.remote-enabled"]);
+  writeFileSync(
+    path.join(d, "prefs.js"),
+    'user_pref("devtools.debugger.remote-enabled", false);\nuser_pref("devtools.chrome.enabled", true);\n',
+  );
+  assert.deepEqual(
+    conflictingPrefs(d).map((p) => p.name),
+    ["devtools.debugger.remote-enabled"],
+  );
   assert.deepEqual(conflictingPrefs(dir()), []);
 });
 
 test("existingPrefs lists the required prefs the profile already has set the wanted way", () => {
   const d = dir();
-  writeFileSync(path.join(d, "prefs.js"), 'user_pref("devtools.debugger.remote-enabled", true);\nuser_pref("devtools.chrome.enabled", false);\n');
-  assert.deepEqual(existingPrefs(d).map((p) => p.name), ["devtools.debugger.remote-enabled"]);
+  writeFileSync(
+    path.join(d, "prefs.js"),
+    'user_pref("devtools.debugger.remote-enabled", true);\nuser_pref("devtools.chrome.enabled", false);\n',
+  );
+  assert.deepEqual(
+    existingPrefs(d).map((p) => p.name),
+    ["devtools.debugger.remote-enabled"],
+  );
 });
 
 test("movePrefsScript moves each value from the user branch to the default branch", () => {

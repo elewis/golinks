@@ -23,7 +23,11 @@ export function fakeApi() {
   let rules = [];
   const listeners = { storageChanged: [], webRequest: [] };
   const api = {
-    storage: { sync: area("sync"), local: area("local"), onChanged: { addListener: (f) => listeners.storageChanged.push(f) } },
+    storage: {
+      sync: area("sync"),
+      local: area("local"),
+      onChanged: { addListener: (f) => listeners.storageChanged.push(f) },
+    },
     declarativeNetRequest: {
       async getDynamicRules() {
         return structuredClone(rules);
@@ -51,7 +55,10 @@ export function fakeApi() {
  */
 export function load(files, fake = fakeApi()) {
   const logs = [];
-  const sink = (level) => (...a) => logs.push([level, ...a]);
+  const sink =
+    (level) =>
+    (...a) =>
+      logs.push([level, ...a]);
   const ctx = vm.createContext({
     browser: fake.api,
     console: { debug: sink("debug"), log: sink("log"), warn: sink("warn"), error: sink("error") },

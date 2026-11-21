@@ -21,13 +21,7 @@
       "description": "Add a go link"
     }
   },
-  "permissions": [
-    "activeTab",
-    "declarativeNetRequestWithHostAccess",
-    "storage",
-    "webRequest",
-    "webRequestBlocking"
-  ],
+  "permissions": ["activeTab", "declarativeNetRequestWithHostAccess", "storage", "webRequest", "webRequestBlocking"],
   "host_permissions": ["*://go/*", "*://*/*"],
   "web_accessible_resources": [
     {

@@ -13,11 +13,17 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { build } from "./build.mts";
-import { applyPrefs, conflictingPrefs, existingPrefs, missingPrefs, movePrefsScript, removePrefs } from "./lib/prefs.mts";
+import {
+  applyPrefs,
+  conflictingPrefs,
+  existingPrefs,
+  missingPrefs,
+  movePrefsScript,
+  removePrefs,
+} from "./lib/prefs.mts";
 import { acceptsForwardedCommands, findProfile, runningPid } from "./lib/profiles.mts";
 import { RdpClient } from "./lib/rdp.mts";
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_PORT = 6005;
 
 const HELP = `Usage: pnpm load:firefox [options]
@@ -52,7 +58,13 @@ interface LaunchOptions {
   headless: boolean | undefined;
 }
 
-export async function run({ argv, env = process.env, stdin = process.stdin, stdout = process.stdout, stderr = process.stderr }: RunOptions): Promise<number> {
+export async function run({
+  argv,
+  env = process.env,
+  stdin = process.stdin,
+  stdout = process.stdout,
+  stderr = process.stderr,
+}: RunOptions): Promise<number> {
   const say = (s = ""): void => void stdout.write(`${s}\n`);
   let args;
   try {
@@ -92,12 +104,14 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
 
   try {
     const port = Number(args.port ?? env.GOLINKS_FF_PORT ?? DEFAULT_PORT);
-    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new UserError(`Invalid port: ${args.port ?? env.GOLINKS_FF_PORT}`);
+    if (!Number.isInteger(port) || port < 1 || port > 65535)
+      throw new UserError(`Invalid port: ${args.port ?? env.GOLINKS_FF_PORT}`);
     // Default: build common/ + firefox/ into dist/firefox first, so a rerun reloads fresh code.
     // An explicit --addon directory is installed as it is.
     const addonDir = args.addon ? path.resolve(args.addon) : build("firefox");
     if (!existsSync(path.join(addonDir, "manifest.json"))) throw new UserError(`No manifest.json in ${addonDir}.`);
-    const addonId = JSON.parse(readFileSync(path.join(addonDir, "manifest.json"), "utf8")).browser_specific_settings?.gecko?.id;
+    const addonId = JSON.parse(readFileSync(path.join(addonDir, "manifest.json"), "utf8")).browser_specific_settings
+      ?.gecko?.id;
     const profile = findProfile({ home: os.homedir(), override: args.profile ?? env.GOLINKS_FF_PROFILE });
 
     // 1. Firefox already has the debugger server open: install, then close it.
@@ -108,34 +122,55 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
       // 2. Firefox is running: ask it to open the server again, no restart. This works when the
       //    prefs are already in force in that session (an earlier run of this script put them there).
       if (pid && acceptsForwardedCommands(pid)) {
-        say(`Firefox is running (pid ${pid}); asking it to open the debugger server on port ${port} for the install...`);
-        client = await reopen({ binary: args.binary ?? env.GOLINKS_FF_BIN, profileDir: profile.dir, port, headless: args.headless });
+        say(
+          `Firefox is running (pid ${pid}); asking it to open the debugger server on port ${port} for the install...`,
+        );
+        client = await reopen({
+          binary: args.binary ?? env.GOLINKS_FF_BIN,
+          profileDir: profile.dir,
+          port,
+          headless: args.headless,
+        });
         if (client && runningPid(profile.dir) !== pid) {
           client.close();
-          throw new UserError(`Firefox's pid changed from ${pid} to ${runningPid(profile.dir)} while reopening the debugger server; not installing. Check for a second Firefox on this profile.`);
+          throw new UserError(
+            `Firefox's pid changed from ${pid} to ${runningPid(profile.dir)} while reopening the debugger server; not installing. Check for a second Firefox on this profile.`,
+          );
         }
         if (!client) say("It did not open the server (the debugger prefs are probably not in force in that session).");
       } else if (pid) {
-        say(`Firefox is running (pid ${pid}) but cannot take a forwarded command (started with --no-remote or headless, or not readable).`);
+        say(
+          `Firefox is running (pid ${pid}) but cannot take a forwarded command (started with --no-remote or headless, or not readable).`,
+        );
       }
       // 3. Otherwise start, or restart, Firefox with the server.
       if (!client) {
         const conflicts = conflictingPrefs(profile.dir);
         if (conflicts.length > 0) {
-          throw new UserError(`This profile sets ${conflicts.map((p) => `${p.name} = ${!p.value}`).join(", ")}; the loader will not override that. Remove the line or set it to ${conflicts.map((p) => p.value).join(", ")} yourself.`);
+          throw new UserError(
+            `This profile sets ${conflicts.map((p) => `${p.name} = ${!p.value}`).join(", ")}; the loader will not override that. Remove the line or set it to ${conflicts.map((p) => p.value).join(", ")} yourself.`,
+          );
         }
         const kept = existingPrefs(profile.dir);
         if (kept.length > 0) {
-          say(`These prefs are already set in your profile (by you, or by an earlier version of this script) and are left as they are:`);
+          say(
+            `These prefs are already set in your profile (by you, or by an earlier version of this script) and are left as they are:`,
+          );
           for (const p of kept) say(`  ${p.name} = ${p.value}`);
           say("To remove them, delete those lines from user.js and prefs.js while Firefox is not running.");
         }
         const prefs = missingPrefs(profile.dir);
         if (prefs.length > 0) {
           say("The debugger server needs these prefs. They are set only for this run: written to user.js for startup,");
-          say("removed again as soon as Firefox is up, and moved to Firefox's defaults so they are never saved. A restart of Firefox drops them.");
+          say(
+            "removed again as soon as Firefox is up, and moved to Firefox's defaults so they are never saved. A restart of Firefox drops them.",
+          );
           for (const p of prefs) say(`  ${p.name} = ${p.value}   (${p.why})`);
-          say("While the server is open (only during the install), any program on this computer can connect to port " + port + " and fully control Firefox.");
+          say(
+            "While the server is open (only during the install), any program on this computer can connect to port " +
+              port +
+              " and fully control Firefox.",
+          );
           if (!(await consent(args["set-prefs"], `Set them temporarily in ${path.join(profile.dir, "user.js")}?`))) {
             throw new UserError("Not changing the profile. Re-run with --set-prefs (or answer y) to allow it.");
           }
@@ -158,7 +193,12 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
         process.once("SIGINT", onSignal);
         process.once("SIGTERM", onSignal);
         try {
-          client = await launch({ binary: args.binary ?? env.GOLINKS_FF_BIN, profileDir: profile.dir, port, headless: args.headless });
+          client = await launch({
+            binary: args.binary ?? env.GOLINKS_FF_BIN,
+            profileDir: profile.dir,
+            port,
+            headless: args.headless,
+          });
           // Firefox has read user.js by now: keep the values for this session only.
           if (prefs.length > 0) await client.evaluateChrome(movePrefsScript(prefs));
         } catch (e) {
@@ -178,7 +218,8 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
     try {
       const addon = await client!.installTemporaryAddon(addonDir);
       const listed = (await client!.listAddons()).find((a) => a.id === (addon?.id ?? addonId));
-      if (!listed?.temporary) throw new UserError(`Firefox accepted the install but does not list ${addonId} as a temporary add-on.`);
+      if (!listed?.temporary)
+        throw new UserError(`Firefox accepted the install but does not list ${addonId} as a temporary add-on.`);
       say(`Loaded ${listed.name} (${listed.id}) from ${addonDir}`);
     } catch (e) {
       failure = e;
@@ -203,7 +244,9 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
       return await RdpClient.connect(p);
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "ECONNREFUSED") return null;
-      throw new UserError(`Port ${p} is in use by something that is not Firefox's debugger server (${(e as Error).message}). Pick another with --port.`);
+      throw new UserError(
+        `Port ${p} is in use by something that is not Firefox's debugger server (${(e as Error).message}). Pick another with --port.`,
+      );
     }
   }
 
@@ -213,7 +256,9 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
       await client.closeServer();
     } catch (e) {
       client.close();
-      throw new UserError(`Could not close the debugger server on port ${p} (${(e as Error).message}). Firefox stays remote controlled until you restart it.`);
+      throw new UserError(
+        `Could not close the debugger server on port ${p} (${(e as Error).message}). Firefox stays remote controlled until you restart it.`,
+      );
     }
     for (let i = 0; i < 25; i++) {
       const again = await tryConnect(p);
@@ -224,7 +269,9 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
       again.close();
       await sleep(200);
     }
-    throw new UserError(`The debugger server on port ${p} is still open. Firefox stays remote controlled until you restart it.`);
+    throw new UserError(
+      `The debugger server on port ${p} is still open. Firefox stays remote controlled until you restart it.`,
+    );
   }
 
   /**
@@ -284,7 +331,8 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
     for (let i = 0; i < 300; i++) {
       if (exitCode !== undefined) {
         // The snap launcher may exit while the real Firefox keeps running; only a pre-listen failure is fatal.
-        if (typeof exitCode === "string" || exitCode !== 0) throw new UserError(`${exe} failed to start (${exitCode}).`);
+        if (typeof exitCode === "string" || exitCode !== 0)
+          throw new UserError(`${exe} failed to start (${exitCode}).`);
       }
       const c = await tryConnect(p);
       if (c) return c;
@@ -297,10 +345,16 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
 function warnAboutSessionRestore(profileDir: string, say: (s?: string) => void): void {
   let startupPage = 1;
   try {
-    startupPage = Number(/user_pref\("browser\.startup\.page",\s*(\d+)\)/.exec(readFileSync(path.join(profileDir, "prefs.js"), "utf8"))?.[1] ?? 1);
+    startupPage = Number(
+      /user_pref\("browser\.startup\.page",\s*(\d+)\)/.exec(
+        readFileSync(path.join(profileDir, "prefs.js"), "utf8"),
+      )?.[1] ?? 1,
+    );
   } catch {}
   if (startupPage !== 3) {
-    say(`Note: browser.startup.page is ${startupPage}, not 3, so Firefox may not reopen your tabs on its own after this restart`);
+    say(
+      `Note: browser.startup.page is ${startupPage}, not 3, so Firefox may not reopen your tabs on its own after this restart`,
+    );
     say("(History > Restore Previous Session brings them back).");
   }
 }

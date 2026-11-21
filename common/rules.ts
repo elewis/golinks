@@ -55,7 +55,7 @@ function get_rule(name: string, destination: string): RuleBody {
         },
       },
       condition: {
-        regexFilter: "^https?://go/" + escapeRegex(golink) + "(?:/(.*))?$",
+        regexFilter: `^https?://go/${escapeRegex(golink)}(?:/(.*))?$`,
         isUrlFilterCaseSensitive: false,
         resourceTypes: ["main_frame"],
       },
@@ -68,7 +68,7 @@ function get_rule(name: string, destination: string): RuleBody {
         redirect: { url: destination },
       },
       condition: {
-        regexFilter: "^https?://go/" + escapeRegex(golink) + "$",
+        regexFilter: `^https?://go/${escapeRegex(golink)}$`,
         isUrlFilterCaseSensitive: false,
         resourceTypes: ["main_frame"],
       },
@@ -79,9 +79,7 @@ function get_rule(name: string, destination: string): RuleBody {
 async function updateRulesWithLinks(links: Links): Promise<void> {
   console.debug("GoLinks: updating rules with links:", links);
   // One rule per lowercased name, so no two rules match the same URL.
-  const new_rules = Object.entries(mergeLinks({}, links)).map(([golink, destination]) =>
-    get_rule(golink, destination)
-  );
+  const new_rules = Object.entries(mergeLinks({}, links)).map(([golink, destination]) => get_rule(golink, destination));
   console.debug("GoLinks: generated rules:", new_rules);
 
   // Add help and default rules
@@ -117,7 +115,7 @@ async function updateRulesWithLinks(links: Links): Promise<void> {
     action: {
       type: "redirect",
       redirect: {
-        regexSubstitution: api.runtime.getURL("notfound.html") + "?name=\\1",
+        regexSubstitution: `${api.runtime.getURL("notfound.html")}?name=\\1`,
       },
     },
     condition: {

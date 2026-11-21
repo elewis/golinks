@@ -24,25 +24,21 @@ async function waitFor(fn, what, timeout = 8000) {
     if (v) return v;
     await sleep(50);
   }
-  throw new Error("timed out waiting for " + what);
+  throw new Error(`timed out waiting for ${what}`);
 }
 
 const hasRule = async (name) =>
   (await browser.declarativeNetRequest.getDynamicRules()).some((r) =>
-    JSON.stringify(r.condition).includes(`go/${name}`)
+    JSON.stringify(r.condition).includes(`go/${name}`),
   );
 
-const Buffer_hex = (str) =>
-  [...new TextEncoder().encode(str)].map((b) => b.toString(16).padStart(2, "0")).join("");
+const Buffer_hex = (str) => [...new TextEncoder().encode(str)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
 async function loadForm() {
   const frame = document.createElement("iframe");
   frame.src = "index.html";
   document.body.appendChild(frame);
-  await waitFor(
-    () => frame.contentDocument?.getElementById("add-btn"),
-    "options form"
-  );
+  await waitFor(() => frame.contentDocument?.getElementById("add-btn"), "options form");
   return frame.contentDocument;
 }
 
@@ -61,10 +57,8 @@ async function run(cmd) {
   }
   if (cmd.op === "del") {
     const doc = await loadForm();
-    const row = [...doc.querySelectorAll("#user-links tr")].find(
-      (r) => r.firstChild.textContent === `go/${LINK.name}`
-    );
-    if (!row) throw new Error("no row for go/" + LINK.name);
+    const row = [...doc.querySelectorAll("#user-links tr")].find((r) => r.firstChild.textContent === `go/${LINK.name}`);
+    if (!row) throw new Error(`no row for go/${LINK.name}`);
     row.querySelector("button").click();
     await waitFor(async () => {
       const { localLinks } = await browser.storage.sync.get("localLinks");
@@ -85,25 +79,31 @@ async function run(cmd) {
       doc.getElementById("link-name").value = n;
       doc.getElementById("link-url").value = `https://example.com/${n}`;
       doc.getElementById("add-btn").click();
-      await waitFor(() => sets > before, "storage.set for " + n);
+      await waitFor(() => sets > before, `storage.set for ${n}`);
       await sleep(300);
       perAction.push(sets - before);
     }
     const before = sets;
     [...doc.querySelectorAll("#user-links tr")]
       .find((r) => r.firstChild.textContent === "go/zzb")
-      .querySelector("button").click();
+      .querySelector("button")
+      .click();
     await waitFor(() => sets > before, "storage.set for delete");
     await sleep(300);
     perAction.push(sets - before);
     const { localLinks } = await browser.storage.sync.get("localLinks");
-    return { perAction, keys: Object.keys(localLinks || {}).sort().join(",") };
+    return {
+      perAction,
+      keys: Object.keys(localLinks || {})
+        .sort()
+        .join(","),
+    };
   }
   if (cmd.op === "burst") {
     await Promise.all(
       [1, 2, 3, 4, 5, 6].map((i) =>
-        browser.storage.sync.set({ localLinks: { ["zzburst" + i]: "https://example.com/" + i } })
-      )
+        browser.storage.sync.set({ localLinks: { [`zzburst${i}`]: `https://example.com/${i}` } }),
+      ),
     );
     await waitFor(() => hasRule("zzburst6"), "rule for the last write");
     return {};
@@ -115,7 +115,7 @@ async function run(cmd) {
       const frame = document.createElement("iframe");
       frame.src = src;
       document.body.appendChild(frame);
-      await waitFor(() => frame.contentDocument?.getElementById("add-btn"), "form in " + src);
+      await waitFor(() => frame.contentDocument?.getElementById("add-btn"), `form in ${src}`);
       const doc = frame.contentDocument;
       const set = (name, url) => {
         doc.getElementById("link-name").value = name;
@@ -144,7 +144,7 @@ async function run(cmd) {
     for (const name of ["", "a/b", "a b", "help"]) {
       pop.set(name, "https://x.test");
       pop.id("add-btn").click();
-      await waitFor(() => pop.id("link-name-error").textContent, "error for " + JSON.stringify(name));
+      await waitFor(() => pop.id("link-name-error").textContent, `error for ${JSON.stringify(name)}`);
     }
     await sleep(300);
     out.validationWrote = JSON.stringify(await local()) !== before;
@@ -169,7 +169,7 @@ async function run(cmd) {
   if (cmd.op === "seed") {
     const seed = await (await fetch("seed.json")).json();
     await browser.storage.sync.set({ localLinks: seed.localLinks });
-    for (const name of Object.keys(seed.localLinks)) await waitFor(() => hasRule(name), "rule for " + name);
+    for (const name of Object.keys(seed.localLinks)) await waitFor(() => hasRule(name), `rule for ${name}`);
     return {};
   }
   if (cmd.op === "frame") {
@@ -179,7 +179,10 @@ async function run(cmd) {
     frame.style.cssText = "border:0;width:100vw;height:100vh;display:block";
     frame.src = shot.src;
     document.body.appendChild(frame);
-    const doc = await waitFor(() => frame.contentDocument?.getElementById("add-btn") && frame.contentDocument, "form in " + shot.src);
+    const doc = await waitFor(
+      () => frame.contentDocument?.getElementById("add-btn") && frame.contentDocument,
+      `form in ${shot.src}`,
+    );
     const fire = (el) => el.dispatchEvent(new Event("input", { bubbles: true }));
     for (const [id, value] of Object.entries(shot.fill || {})) {
       const el = doc.getElementById(id);
@@ -216,13 +219,13 @@ async function run(cmd) {
     await browser.storage.local.remove("interceptions");
     await Promise.all(
       Array.from({ length: 150 }, (_, i) =>
-        bg.recordInterception({ url: "https://e.test/?q=go%2Fn" + i, tabId: i }, "https://go/n" + i)
-      )
+        bg.recordInterception({ url: `https://e.test/?q=go%2Fn${i}`, tabId: i }, `https://go/n${i}`),
+      ),
     );
     const { interceptions } = await browser.storage.local.get("interceptions");
     return { entries: interceptions || [] };
   }
-  throw new Error("unknown op " + cmd.op);
+  throw new Error(`unknown op ${cmd.op}`);
 }
 
 (async () => {
@@ -233,5 +236,5 @@ async function run(cmd) {
   } catch (e) {
     out = { ok: false, error: String(e) };
   }
-  location.hash = "result=" + Buffer_hex(JSON.stringify(out));
+  location.hash = `result=${Buffer_hex(JSON.stringify(out))}`;
 })();

@@ -86,7 +86,11 @@ async function shootFirefox(shots: Shot[]): Promise<void> {
       await ff.get("about:blank");
       await ff.waitUrl((u: string) => u === "about:blank");
       await ff.get(`https://go/zztest-${op}`);
-      const url: string = await ff.waitFor(() => ff.currentUrl(), (u: string) => u.includes("#result="), 20_000);
+      const url: string = await ff.waitFor(
+        () => ff.currentUrl(),
+        (u: string) => u.includes("#result="),
+        20_000,
+      );
       if (!url.includes("#result=")) throw new Error(`harness op ${op} gave no result, url=${url}`);
       const result = JSON.parse(Buffer.from(url.split("#result=")[1]!, "hex").toString());
       if (!result.ok) throw new Error(`harness op ${op} failed: ${result.error}`);
@@ -107,26 +111,30 @@ async function shootFirefox(shots: Shot[]): Promise<void> {
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const serverPort = (server.address() as { port: number }).port;
     try {
-    writeFileSync(path.join(dir, "seed.json"), JSON.stringify({ localLinks: SEED_LINKS }));
-    await run("seed");
-    for (const shot of shots) {
-      writeFileSync(path.join(dir, "shot.json"), JSON.stringify(shot));
-      await ff.setWindowRect(DESKTOP.width, DESKTOP.height);
-      // First pass as a top-level page: measures the content and reports its origin.
-      const result = await run("frame");
-      const origin = (await ff.currentUrl()).split("/test.html")[0];
-      const size = shot.popup ? fit(result) : DESKTOP;
-      await ff.setWindowRect(size.width, size.height);
-      await ff.get(`http://go:${serverPort}/?src=${encodeURIComponent(`${origin}/test.html?op=frame`)}`);
-      await ff.waitFor(() => ff.title(), (t: string) => t === "ready", 10_000);
-      if (shot.popup) {
-        // The window is larger than its viewport; grow it by the difference.
-        const [w, h] = await ff.execute("return [innerWidth, innerHeight]");
-        await ff.setWindowRect(size.width + (size.width - w), size.height + (size.height - h));
-        await new Promise((r) => setTimeout(r, 200));
+      writeFileSync(path.join(dir, "seed.json"), JSON.stringify({ localLinks: SEED_LINKS }));
+      await run("seed");
+      for (const shot of shots) {
+        writeFileSync(path.join(dir, "shot.json"), JSON.stringify(shot));
+        await ff.setWindowRect(DESKTOP.width, DESKTOP.height);
+        // First pass as a top-level page: measures the content and reports its origin.
+        const result = await run("frame");
+        const origin = (await ff.currentUrl()).split("/test.html")[0];
+        const size = shot.popup ? fit(result) : DESKTOP;
+        await ff.setWindowRect(size.width, size.height);
+        await ff.get(`http://go:${serverPort}/?src=${encodeURIComponent(`${origin}/test.html?op=frame`)}`);
+        await ff.waitFor(
+          () => ff.title(),
+          (t: string) => t === "ready",
+          10_000,
+        );
+        if (shot.popup) {
+          // The window is larger than its viewport; grow it by the difference.
+          const [w, h] = await ff.execute("return [innerWidth, innerHeight]");
+          await ff.setWindowRect(size.width + (size.width - w), size.height + (size.height - h));
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        save("firefox", shot.label, await ff.screenshot());
       }
-      save("firefox", shot.label, await ff.screenshot());
-    }
     } finally {
       server.close();
     }
@@ -183,7 +191,9 @@ async function shootChrome(shots: Shot[]): Promise<void> {
 
 const args = process.argv.slice(2);
 if (args.includes("--help") || args.includes("-h")) {
-  console.log("usage: pnpm screenshot [firefox|chrome|both] [page ...]\npages: popup, not-found, help, overwrite, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help");
+  console.log(
+    "usage: pnpm screenshot [firefox|chrome|both] [page ...]\npages: popup, not-found, help, overwrite, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
+  );
   process.exit(0);
 }
 const browsers = args.filter((a) => ["firefox", "chrome", "both"].includes(a));

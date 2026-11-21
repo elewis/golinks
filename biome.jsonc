@@ -1,0 +1,100 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**/*.ts",
+      "**/*.mts",
+      "**/*.mjs",
+      "**/*.js",
+      "**/*.json",
+      "**/*.html",
+      "!dist",
+      "!node_modules",
+      "!.screenshots",
+      "!tests/*/.build",
+      "!.worktrees",
+      "!.hive",
+      "!pnpm-lock.yaml"
+    ]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      // Every rule set to "off" is noise here, not a sign the code is wrong; the reason is next to it
+      "complexity": {
+        // `(a(), b())` in arrow callbacks is used on purpose
+        "noCommaOperator": "off"
+      },
+      "style": {
+        // tsc strict already checks; `!` is deliberate where a value is known to exist
+        "noNonNullAssertion": "off"
+      },
+      "suspicious": {
+        // the type check covers typing; these are pragmatic in the scripts
+        "noExplicitAny": "off",
+        "noImplicitAnyLet": "off"
+      }
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        // would reorder imports: churn, not formatting
+        "organizeImports": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["common/**", "chrome/**", "firefox/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            // the extension files are classic scripts sharing globals: a top-level name
+            // is "unused" in its own file but used by another
+            "noUnusedVariables": "off",
+            "noUnusedFunctionParameters": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["common/**", "chrome/**", "firefox/**", "tests/firefox/harness/test.js"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            // classic scripts (not modules) need their own "use strict"
+            "noRedundantUseStrict": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["tests/unit/rules.test.mjs"],
+      "linter": {
+        "rules": {
+          // the test deliberately holds a "${...}" string (a regex-escape input)
+          "suspicious": {
+            "noTemplateCurlyInString": "off"
+          }
+        }
+      }
+    }
+  ]
+}

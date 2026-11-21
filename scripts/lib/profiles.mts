@@ -45,7 +45,9 @@ export function findProfile({ home, override }: { home: string; override?: strin
     looked.push(ini);
     if (!existsSync(ini)) continue;
     const sections = parseProfilesIni(readFileSync(ini, "utf8"));
-    const profiles = Object.entries(sections).filter(([k]) => /^Profile\d+$/.test(k)).map(([, v]) => v);
+    const profiles = Object.entries(sections)
+      .filter(([k]) => /^Profile\d+$/.test(k))
+      .map(([, v]) => v);
     const resolve = (p: IniSection): string => (p.IsRelative === "0" ? p.Path : path.join(root, p.Path));
     const install = Object.entries(sections).find(([k, v]) => k.startsWith("Install") && v.Default);
     const chosen =

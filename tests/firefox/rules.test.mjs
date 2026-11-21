@@ -16,7 +16,11 @@ async function navigate(url) {
 
 async function harness(op) {
   await navigate(`https://go/zztest-${op}`);
-  const url = await fx.ff.waitFor(() => fx.ff.currentUrl(), (u) => u.includes("#result="), 12_000);
+  const url = await fx.ff.waitFor(
+    () => fx.ff.currentUrl(),
+    (u) => u.includes("#result="),
+    12_000,
+  );
   assert.ok(url.includes("#result="), `harness gave no result, url=${url}`);
   const result = JSON.parse(Buffer.from(url.split("#result=")[1], "hex").toString());
   assert.ok(result.ok, `harness ${op} failed: ${result.error}`);
@@ -28,7 +32,11 @@ async function redirectsTo(url, expected) {
   assert.equal(final, expected);
 }
 
-const errors = () => fx.ff.log().split("\n").filter((l) => l.includes("JavaScript error"));
+const errors = () =>
+  fx.ff
+    .log()
+    .split("\n")
+    .filter((l) => l.includes("JavaScript error"));
 
 describe("concurrent rule updates", () => {
   test("a burst of storage changes never fails and leaves the last state", async () => {

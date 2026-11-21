@@ -7,7 +7,9 @@
     "build:firefox": "node scripts/build.mts firefox",
     "build:chrome": "node scripts/build.mts chrome",
     "typecheck": "tsc -p tsconfig.firefox.json && tsc -p tsconfig.chrome.json && tsc -p tsconfig.scripts.json",
-    "test": "pnpm run typecheck && node --test tests/build/*.test.mjs tests/unit/*.test.mjs tests/load-firefox/prefs.test.mjs tests/load-firefox/profiles.test.mjs tests/load-firefox/rdp.test.mjs",
+    "format": "biome format --write .",
+    "lint": "biome check --error-on-warnings .",
+    "test": "pnpm run lint && pnpm run typecheck && node --test tests/build/*.test.mjs tests/unit/*.test.mjs tests/load-firefox/prefs.test.mjs tests/load-firefox/profiles.test.mjs tests/load-firefox/rdp.test.mjs",
     "test:firefox": "node --test --test-concurrency=1 tests/firefox/*.test.mjs",
     "test:chrome": "node --test --test-concurrency=1 tests/chrome/*.test.mjs",
     "test:build": "node --test tests/build/*.test.mjs",
@@ -19,6 +21,7 @@
     "test:full": "pnpm test && pnpm run test:firefox && pnpm run test:chrome && pnpm run test:loader:integration"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.8",
     "@types/chrome": "0.3.7",
     "@types/firefox-webext-browser": "143.0.1",
     "@types/node": "24.19.2",

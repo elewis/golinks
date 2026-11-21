@@ -12,9 +12,7 @@
 
   if (!hasPermissions) {
     console.warn("GoLinks: Missing host permissions for go/* URLs");
-    console.warn(
-      "GoLinks: Please grant permissions in about:addons > GoLinks > Permissions"
-    );
+    console.warn("GoLinks: Please grant permissions in about:addons > GoLinks > Permissions");
   }
 
   await startRules();
@@ -39,5 +37,5 @@ api.webRequest.onBeforeRequest.addListener(
     urls: ["<all_urls>"],
     types: ["main_frame"],
   },
-  ["blocking"]
+  ["blocking"],
 );

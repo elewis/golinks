@@ -15,7 +15,7 @@ export const BROWSERS: readonly string[] = ["chrome", "firefox"];
 
 /** The name a source file has in dist/: x.ts becomes x.js, anything else is unchanged. */
 export function emittedName(name: string): string {
-  return name.endsWith(".ts") ? name.slice(0, -3) + ".js" : name;
+  return name.endsWith(".ts") ? `${name.slice(0, -3)}.js` : name;
 }
 
 /** TypeScript source to JavaScript: types blanked out, everything else untouched. Throws on non-erasable syntax. */
@@ -51,7 +51,9 @@ export function assemble(dest: string, dirs: string[]): string {
   for (const dir of dirs) {
     for (const name of readdirSync(dir).map(emittedName)) {
       if (seen.has(name)) {
-        throw new Error(`${path.relative(REPO, seen.get(name)!)}/ and ${path.relative(REPO, dir)}/ both have: ${name}. Rename or remove one.`);
+        throw new Error(
+          `${path.relative(REPO, seen.get(name)!)}/ and ${path.relative(REPO, dir)}/ both have: ${name}. Rename or remove one.`,
+        );
       }
       seen.set(name, dir);
     }

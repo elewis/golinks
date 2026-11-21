@@ -22,7 +22,11 @@ test("not-found page carries the name; the shared form saves, validates, lists a
   assert.ok(nfUrl.endsWith("/notfound.html?name=zznew"), nfUrl);
 
   await navigate("https://go/zztest-addlink");
-  const url = await fx.ff.waitFor(() => fx.ff.currentUrl(), (u) => u.includes("#result="), 20_000);
+  const url = await fx.ff.waitFor(
+    () => fx.ff.currentUrl(),
+    (u) => u.includes("#result="),
+    20_000,
+  );
   assert.ok(url.includes("#result="), `harness gave no result, url=${url}`);
   const r = JSON.parse(Buffer.from(url.split("#result=")[1], "hex").toString());
   assert.ok(r.ok, `harness failed: ${r.error}`);

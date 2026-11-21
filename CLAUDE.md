@@ -81,7 +81,8 @@ Shared code lives once, in `common/`, so it cannot drift. There is no diff-based
 ## Development Notes
 - **Chrome**: Uses service workers with `importScripts()` 
 - **Firefox**: Uses event pages with manifest `scripts` array
-- **No runtime dependencies; dev dependencies are type-check tools only**: Direct browser API usage, no polyfill libraries. The devDependencies are only for type checking: `typescript`, `@types/chrome`, `@types/firefox-webext-browser`, `@types/node` (all pinned). Other devDependencies are fine to add; any runtime dependency (shipped in the extension) needs asking first.
+- **No runtime dependencies; dev dependencies are dev tooling only**: Direct browser API usage, no polyfill libraries. The devDependencies are dev tooling only: `typescript`, `@types/chrome`, `@types/firefox-webext-browser`, `@types/node` (type checking) and `@biomejs/biome` (formatter and linter), all pinned. Other devDependencies are fine to add; any runtime dependency (shipped in the extension) needs asking first.
+- **Format and lint**: Biome (`biome.jsonc`, 2-space indent, double quotes, semicolons, line width 120). `pnpm format` rewrites files; `pnpm lint` (`biome check --error-on-warnings`) is read-only and `pnpm test` runs it first, so an unformatted file fails the tests. Run `pnpm format` before committing. Rules that misfire on the shared-globals classic scripts (unused top-level names, redundant `use strict`) are off for `common/`, `chrome/` and `firefox/`; each disabled rule is listed in `biome.jsonc`.
 - **Types**: `pnpm typecheck` runs `tsc --noEmit` (strict) three times: `tsconfig.firefox.json` (`common/` + `firefox/` + `types/firefox.d.ts`, browser types from `@types/firefox-webext-browser`), `tsconfig.chrome.json` (`common/` + `chrome/` + `types/chrome.d.ts`, `@types/chrome`) and `tsconfig.scripts.json` (`scripts/**/*.mts`, `@types/node`). `common/` is checked against both browsers: `Api` is `typeof browser` in one and `typeof chrome` in the other, so shared code may only use what both type sets agree on. Tests stay plain JavaScript (`.mjs`) and are not type checked.
 - Rules are dynamically managed via `declarativeNetRequest` 
 - Storage changes trigger automatic rule updates without restart
@@ -96,12 +97,12 @@ Firefox cannot screenshot or script an extension page, so the shot is of a web p
 ## Testing
 
 ### Test workflow
-Setup: run `pnpm install` once in a fresh checkout. It installs the dev-only type-check tools that `pnpm test` (via `pnpm typecheck`) needs; `pnpm build` itself uses only Node built-ins. Nothing ships in the extension.
+Setup: run `pnpm install` once in a fresh checkout. It installs the dev-only tools that `pnpm test` needs (Biome and the type-check tools); `pnpm build` itself uses only Node built-ins. Nothing ships in the extension.
 
 Red/green with `pnpm test` only: it is fast (about a second, typecheck included, no browser, no network), so run it after every change. Run `pnpm test:full` once at the end, before a handback, commit or merge. Do not iterate on the browser suites.
 
 ```
-pnpm test        # typecheck + build tests + extension unit tests + loader unit tests
+pnpm test        # biome check + typecheck + build tests + extension unit tests + loader unit tests
 pnpm typecheck   # tsc --noEmit, strict, for firefox, chrome and scripts (about 0.5 s)
 pnpm test:full   # pnpm test, then test:firefox, test:chrome, test:loader:integration
 ```

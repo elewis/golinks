@@ -13,7 +13,8 @@ test("goUrlFromSearch: q, p, query and text on any host", () => {
     "https://example.org/find?query=go/github",
     "https://custom.engine/s?text=go/github",
     "http://localhost:8080/?q=go%2Fgithub",
-  ]) assert.equal(parse(url), "https://go/github", url);
+  ])
+    assert.equal(parse(url), "https://go/github", url);
 });
 
 test("goUrlFromSearch: keeps the path and arguments, trims, ignores case of go/", () => {
@@ -35,7 +36,8 @@ test("goUrlFromSearch: only a query that starts with go/ and a link name matches
     "https://g.com/search",
     "ftp://g.com/?q=go/github",
     "not a url",
-  ]) assert.equal(parse(url), null, url);
+  ])
+    assert.equal(parse(url), null, url);
 });
 
 const details = (n) => ({ url: `https://g.com/?q=go/x${n}`, tabId: n });
@@ -62,18 +64,26 @@ test("recordInterception: 150 overlapping records keep the last 100 in order", a
   await Promise.all(runs);
   const list = fake.store.local.interceptions;
   assert.equal(get("MAX_INTERCEPTIONS"), 100);
-  assert.deepEqual(list.map((e) => e.tabId), Array.from({ length: 100 }, (_, i) => i + 50));
+  assert.deepEqual(
+    list.map((e) => e.tabId),
+    Array.from({ length: 100 }, (_, i) => i + 50),
+  );
 });
 
 test("recordInterception: a failing write is logged and does not block the next", async () => {
   const { fake, get, ctx, logs } = sb();
   const real = fake.api.storage.local.set;
-  fake.api.storage.local.set = async () => { throw new Error("quota"); };
+  fake.api.storage.local.set = async () => {
+    throw new Error("quota");
+  };
   ctx.d = details(1);
   await get('recordInterception(d, "https://go/x1")');
   fake.api.storage.local.set = real;
   ctx.d = details(2);
   await get('recordInterception(d, "https://go/x2")');
-  assert.deepEqual(fake.store.local.interceptions.map((e) => e.tabId), [2]);
+  assert.deepEqual(
+    fake.store.local.interceptions.map((e) => e.tabId),
+    [2],
+  );
   assert.ok(logs.some(([l]) => l === "error"));
 });

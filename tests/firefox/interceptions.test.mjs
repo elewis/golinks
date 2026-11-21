@@ -17,7 +17,11 @@ async function navigate(url) {
 /** Run a harness operation and return its result. */
 async function harness(op) {
   await navigate(`https://go/zztest-${op}`);
-  const url = await fx.ff.waitFor(() => fx.ff.currentUrl(), (u) => u.includes("#result="), 15_000);
+  const url = await fx.ff.waitFor(
+    () => fx.ff.currentUrl(),
+    (u) => u.includes("#result="),
+    15_000,
+  );
   assert.ok(url.includes("#result="), `harness gave no result, url=${url}`);
   const result = JSON.parse(Buffer.from(url.split("#result=")[1], "hex").toString());
   assert.ok(result.ok, `harness ${op} failed: ${result.error}`);
@@ -51,6 +55,9 @@ describe("interceptions are recorded", () => {
   test("150 overlapping records keep only the last 100, in order", async () => {
     const { entries } = await harness("flood");
     assert.equal(entries.length, 100);
-    assert.deepEqual(entries.map((e) => e.to), Array.from({ length: 100 }, (_, i) => "https://go/n" + (i + 50)));
+    assert.deepEqual(
+      entries.map((e) => e.to),
+      Array.from({ length: 100 }, (_, i) => `https://go/n${i + 50}`),
+    );
   });
 });

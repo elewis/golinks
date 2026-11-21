@@ -8,7 +8,11 @@ const check = (name, url, links = {}) =>
   plain(sb().get(`checkLink(${JSON.stringify(name)}, ${JSON.stringify(url)}, ${JSON.stringify(links)})`));
 
 test("checkLink: a valid name and URL are accepted, trimmed, with a leading go/ dropped", () => {
-  assert.deepEqual(check("  go/docs ", " https://example.com/docs "), { ok: true, name: "docs", url: "https://example.com/docs" });
+  assert.deepEqual(check("  go/docs ", " https://example.com/docs "), {
+    ok: true,
+    name: "docs",
+    url: "https://example.com/docs",
+  });
   assert.deepEqual(check("docs", "https://x.test"), { ok: true, name: "docs", url: "https://x.test" });
 });
 
@@ -24,13 +28,30 @@ test("checkLink: an empty name or URL is an error shown on that field", () => {
 });
 
 test("checkLink: the URL must be a full http(s) URL", () => {
-  const bad = ["example.com", "www.example.com/x", "foo bar", "https://x.test/a b", "javascript:alert(1)", "ftp://x.test/f", "https://", "//x.test", "mailto:a@b.c", "file:///etc/passwd"];
+  const bad = [
+    "example.com",
+    "www.example.com/x",
+    "foo bar",
+    "https://x.test/a b",
+    "javascript:alert(1)",
+    "ftp://x.test/f",
+    "https://",
+    "//x.test",
+    "mailto:a@b.c",
+    "file:///etc/passwd",
+  ];
   for (const url of bad) {
     const r = check("ok", url);
     assert.equal(r.ok, false, url);
     assert.match(r.errors.url, /http:\/\/ or https:\/\//, url);
   }
-  for (const url of ["http://x.test", "https://x.test/a?b=c#d", "HTTPS://X.TEST", "https://github.com/search?q=%s", "https://x.test/%s/more"]) {
+  for (const url of [
+    "http://x.test",
+    "https://x.test/a?b=c#d",
+    "HTTPS://X.TEST",
+    "https://github.com/search?q=%s",
+    "https://x.test/%s/more",
+  ]) {
     assert.equal(check("ok", url).ok, true, url);
   }
 });
@@ -59,7 +80,10 @@ test("checkLink: help is reserved", () => {
 test("checkLink: a taken name reports what it points to now; a free name does not", () => {
   const links = { gh: "https://github.com", cs: "https://github.com/search?q=%s" };
   assert.deepEqual(check("gh", "https://example.com", links), {
-    ok: true, name: "gh", url: "https://example.com", overwrites: "https://github.com",
+    ok: true,
+    name: "gh",
+    url: "https://example.com",
+    overwrites: "https://github.com",
   });
   assert.equal(check("new", "https://example.com", links).overwrites, undefined);
   // Not fooled by names that Object.prototype has.

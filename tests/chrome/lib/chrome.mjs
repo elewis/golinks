@@ -22,7 +22,10 @@ function killAll() {
   live.clear();
 }
 process.on("exit", killAll);
-for (const [sig, code] of [["SIGINT", 130], ["SIGTERM", 143]]) {
+for (const [sig, code] of [
+  ["SIGINT", 130],
+  ["SIGTERM", 143],
+]) {
   process.on(sig, () => {
     killAll();
     process.exit(code);
@@ -203,7 +206,11 @@ export class Chrome {
 
   /** Give the page a viewport of exactly width x height CSS pixels. */
   async setViewport(page, width, height) {
-    await this.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, page.sessionId);
+    await this.send(
+      "Emulation.setDeviceMetricsOverride",
+      { width, height, deviceScaleFactor: 1, mobile: false },
+      page.sessionId,
+    );
   }
 
   /** PNG of the page's viewport, as a Buffer. */

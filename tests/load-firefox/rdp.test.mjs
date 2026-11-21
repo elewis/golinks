@@ -24,7 +24,10 @@ test("PacketParser handles a multibyte character split across chunks", () => {
 });
 
 test("PacketParser rejects data that is not the debugger protocol", () => {
-  assert.throws(() => new PacketParser().push(Buffer.from("HTTP/1.1 400 Bad Request\r\n")), /not the Firefox debugger protocol/);
+  assert.throws(
+    () => new PacketParser().push(Buffer.from("HTTP/1.1 400 Bad Request\r\n")),
+    /not the Firefox debugger protocol/,
+  );
 });
 
 /** A fake debugger server: replies to each request with reply(request). */
@@ -53,7 +56,12 @@ test("installTemporaryAddon asks the addons actor to install the path", async ()
     const addon = await client.installTemporaryAddon("/some/dir");
     client.close();
     assert.equal(addon.id, "x@y");
-    assert.deepEqual(seen[1], { to: "addons1", type: "installTemporaryAddon", addonPath: "/some/dir", openDevTools: false });
+    assert.deepEqual(seen[1], {
+      to: "addons1",
+      type: "installTemporaryAddon",
+      addonPath: "/some/dir",
+      openDevTools: false,
+    });
   } finally {
     server.close();
   }
@@ -61,7 +69,9 @@ test("installTemporaryAddon asks the addons actor to install the path", async ()
 
 test("a protocol error reply becomes a thrown error with Firefox's message", async () => {
   const { server, port } = await fakeServer((req) =>
-    req.type === "getRoot" ? { addonsActor: "a" } : { error: "unknownError", message: "Could not install add-on: bad manifest" },
+    req.type === "getRoot"
+      ? { addonsActor: "a" }
+      : { error: "unknownError", message: "Could not install add-on: bad manifest" },
   );
   try {
     const client = await RdpClient.connect(port);
@@ -141,8 +151,14 @@ test("closeServer succeeds when the connection is reset instead of closed", asyn
 });
 
 test("closeServer fails fast, naming the Firefox internals, when the script reports it could not close anything", async () => {
-  const { server, port } = await fakeChromeServer((sock, send) =>
-    send({ from: "con1", type: "evaluationResult", resultID: "1", exception: { preview: { message: "no debugger server is listening" } }, exceptionMessage: "no debugger server is listening" }),
+  const { server, port } = await fakeChromeServer((_sock, send) =>
+    send({
+      from: "con1",
+      type: "evaluationResult",
+      resultID: "1",
+      exception: { preview: { message: "no debugger server is listening" } },
+      exceptionMessage: "no debugger server is listening",
+    }),
   );
   try {
     const client = await RdpClient.connect(port);

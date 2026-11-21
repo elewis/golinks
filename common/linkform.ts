@@ -78,7 +78,12 @@ function initLinkForm(container: HTMLElement, prefill: { name?: string; url?: st
 
   const form = el("form", { id: "add-link-form" });
   const nameInput = el("input", { type: "text", id: "link-name", placeholder: "go/newlink", autocomplete: "off" });
-  const urlInput = el("input", { type: "text", id: "link-url", placeholder: "https://example.com", autocomplete: "off" });
+  const urlInput = el("input", {
+    type: "text",
+    id: "link-url",
+    placeholder: "https://example.com",
+    autocomplete: "off",
+  });
   const nameError = el("div", { id: "link-name-error", role: "alert" });
   const urlError = el("div", { id: "link-url-error", role: "alert" });
   const addBtn = el("button", { type: "submit", id: "add-btn" }, "Add");
@@ -118,9 +123,7 @@ function initLinkForm(container: HTMLElement, prefill: { name?: string; url?: st
   }
 
   function showExisting(): void {
-    existingList.replaceChildren(
-      ...linksForUrl(known, urlInput.value).map((name) => el("li", {}, `go/${name}`)),
-    );
+    existingList.replaceChildren(...linksForUrl(known, urlInput.value).map((name) => el("li", {}, `go/${name}`)));
     existing.hidden = existingList.childElementCount === 0;
   }
 

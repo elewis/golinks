@@ -22,7 +22,10 @@ async function passesThrough(url) {
   // a hijack. about:neterror is just the browser failing to load the original.
   const final = await fx.ff.waitUrl((u) => u !== url && u !== "about:blank" && !u.startsWith("about:neterror"), 4000);
   // about:blank: the load is still pending (host unreachable), so nothing redirected it either.
-  assert.ok(final === url || final === "about:blank" || final.startsWith("about:neterror"), `${url} was redirected to ${final}`);
+  assert.ok(
+    final === url || final === "about:blank" || final.startsWith("about:neterror"),
+    `${url} was redirected to ${final}`,
+  );
 }
 
 describe("URLs that merely contain go/ are not redirected", () => {
@@ -30,7 +33,8 @@ describe("URLs that merely contain go/ are not redirected", () => {
   test("https://example.com/?q=gox", () => passesThrough("https://example.com/?q=gox"));
   test("https://example.com/?q=ago/github", () => passesThrough("https://example.com/?q=ago/github"));
   test("https://example.com/?q=go/ (no link name)", () => passesThrough("https://example.com/?q=go%2F"));
-  test("https://example.com/?other=go/github (not a search param)", () => passesThrough("https://example.com/?other=go%2Fgithub"));
+  test("https://example.com/?other=go/github (not a search param)", () =>
+    passesThrough("https://example.com/?other=go%2Fgithub"));
   test("https://foo.go/bar", () => passesThrough("https://foo.go/bar"));
   test("https://example.com/go/github", () => passesThrough("https://example.com/go/github"));
 });
@@ -42,15 +46,27 @@ describe("an address-bar search for go/... is redirected", () => {
     const final = await fx.ff.waitUrl((x) => x.startsWith(prefix));
     assert.ok(final.startsWith(prefix), `${u} -> ${final}, wanted ${prefix}*`);
   };
-  test("google: go/github", search("https://www.google.com/search?client=firefox-b-d&q=go%2Fgithub", "https://github.com/"));
-  test("duckduckgo: go/cs/test", search("https://duckduckgo.com/?q=go%2Fcs%2Ftest&t=ffab", "https://github.com/search?q=test"));
+  test(
+    "google: go/github",
+    search("https://www.google.com/search?client=firefox-b-d&q=go%2Fgithub", "https://github.com/"),
+  );
+  test(
+    "duckduckgo: go/cs/test",
+    search("https://duckduckgo.com/?q=go%2Fcs%2Ftest&t=ffab", "https://github.com/search?q=test"),
+  );
   // Any host: regional Google, custom engines, anything that takes the text in q/p/query/text.
   test("regional google: go/github", search("https://www.google.co.uk/search?q=go%2Fgithub", "https://github.com/"));
-  test("custom engine on any host: go/github", search("https://example.com/search?q=go%2Fgithub", "https://github.com/"));
+  test(
+    "custom engine on any host: go/github",
+    search("https://example.com/search?q=go%2Fgithub", "https://github.com/"),
+  );
   test("custom engine, param p: go/gh", search("https://search.example.org/?p=go%2Fgh", "https://github.com/"));
   test("custom engine, param query: go/gh", search("https://search.example.org/?query=go%2Fgh", "https://github.com/"));
   test("custom engine, param text: go/gh", search("https://search.example.org/?text=go%2Fgh", "https://github.com/"));
-  test("bing: go/gh with a plus-encoded space", search("https://www.bing.com/search?q=go%2Fgh+&form=x", "https://github.com/"));
+  test(
+    "bing: go/gh with a plus-encoded space",
+    search("https://www.bing.com/search?q=go%2Fgh+&form=x", "https://github.com/"),
+  );
 });
 
 // An address-bar navigation has no originUrl; a link click or form submit from
@@ -76,10 +92,16 @@ describe("a link or form in a page is not an address-bar search", () => {
   }
   test("clicking a link to example.com/?q=go/github", async () => {
     const final = await fromPage("#a");
-    assert.ok(final.startsWith("https://example.com/") || final.startsWith("about:neterror"), `link click was redirected to ${final}`);
+    assert.ok(
+      final.startsWith("https://example.com/") || final.startsWith("about:neterror"),
+      `link click was redirected to ${final}`,
+    );
   });
   test("submitting a GET form to example.com with q=go/github", async () => {
     const final = await fromPage("#b");
-    assert.ok(final.startsWith("https://example.com/") || final.startsWith("about:neterror"), `form submit was redirected to ${final}`);
+    assert.ok(
+      final.startsWith("https://example.com/") || final.startsWith("about:neterror"),
+      `form submit was redirected to ${final}`,
+    );
   });
 });

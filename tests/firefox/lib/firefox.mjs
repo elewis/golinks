@@ -31,7 +31,10 @@ function killAll() {
   live.clear();
 }
 process.on("exit", killAll);
-for (const [sig, code] of [["SIGINT", 130], ["SIGTERM", 143]]) {
+for (const [sig, code] of [
+  ["SIGINT", 130],
+  ["SIGTERM", 143],
+]) {
   process.on(sig, () => {
     killAll();
     process.exit(code);
@@ -62,7 +65,7 @@ export class Firefox {
       try {
         await this.#http("GET", "/status");
         break;
-      } catch (e) {
+      } catch {
         if (this.proc.exitCode !== null) throw new Error(`geckodriver exited; see ${this.logPath}`);
         if (Date.now() > deadline) throw new Error("geckodriver did not become ready");
         await sleep(100);

@@ -33,7 +33,7 @@ export class PacketParser {
     for (;;) {
       const colon = this.#buf.indexOf(":");
       const head = this.#buf.subarray(0, colon === -1 ? Math.min(this.#buf.length, 12) : colon).toString("latin1");
-      if (!/^\d*$/.test(head) || (colon === -1 && head.length >= 12) || (colon === 0)) {
+      if (!/^\d*$/.test(head) || (colon === -1 && head.length >= 12) || colon === 0) {
         throw new Error(NOT_RDP);
       }
       if (colon === -1) return packets;
@@ -72,7 +72,10 @@ export class RdpClient {
   }
 
   /** Connect and wait for the root actor's greeting. */
-  static async connect(port: number, { host = "127.0.0.1", timeout = 5000 }: { host?: string; timeout?: number } = {}): Promise<RdpClient> {
+  static async connect(
+    port: number,
+    { host = "127.0.0.1", timeout = 5000 }: { host?: string; timeout?: number } = {},
+  ): Promise<RdpClient> {
     const sock = net.connect({ port, host });
     await new Promise<void>((resolve, reject) => {
       sock.once("connect", () => resolve());
@@ -80,7 +83,11 @@ export class RdpClient {
     });
     const client = new RdpClient(sock);
     try {
-      const hello = await client.#next("root", timeout, `port ${port} accepted the connection but did not answer like Firefox`);
+      const hello = await client.#next(
+        "root",
+        timeout,
+        `port ${port} accepted the connection but did not answer like Firefox`,
+      );
       if (hello.applicationType === undefined) throw new Error(NOT_RDP);
     } catch (e) {
       client.close();
@@ -154,7 +161,9 @@ export class RdpClient {
     await this.request(consoleActor, "evaluateJSAsync", { text });
     const reply = await this.#next(consoleActor, timeout);
     if (reply.exception) {
-      const error: Error & { scriptError?: boolean } = new Error(`Firefox could not run the script: ${reply.exceptionMessage ?? JSON.stringify(reply.exception.preview ?? reply.exception)}`);
+      const error: Error & { scriptError?: boolean } = new Error(
+        `Firefox could not run the script: ${reply.exceptionMessage ?? JSON.stringify(reply.exception.preview ?? reply.exception)}`,
+      );
       error.scriptError = true;
       throw error;
     }
@@ -176,7 +185,9 @@ export class RdpClient {
       // dropping the connection as the close takes effect, which is the success
       // case; the caller checks the port is really refused.
       if ((e as { scriptError?: boolean }).scriptError) {
-        throw new Error(`${(e as Error).message} (the close relies on Firefox internals: DistinctSystemPrincipalLoader.sys.mjs and the devtools-startup-clh component, checked on Firefox 157)`);
+        throw new Error(
+          `${(e as Error).message} (the close relies on Firefox internals: DistinctSystemPrincipalLoader.sys.mjs and the devtools-startup-clh component, checked on Firefox 157)`,
+        );
       }
     }
     let timer: NodeJS.Timeout | undefined;

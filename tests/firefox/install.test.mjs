@@ -9,6 +9,9 @@ after(() => fx?.stop());
 
 test("background loads without JavaScript errors", async () => {
   assert.ok(await fx.ff.waitLog("GoLinks: extension loaded"), "'GoLinks: extension loaded' never appeared in the log");
-  const errors = fx.ff.log().split("\n").filter((l) => l.includes("JavaScript error"));
+  const errors = fx.ff
+    .log()
+    .split("\n")
+    .filter((l) => l.includes("JavaScript error"));
   assert.deepEqual(errors, []);
 });

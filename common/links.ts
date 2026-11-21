@@ -36,7 +36,10 @@ function sameLinks(a: Links, b: Links): boolean {
 
 async function getLinks(): Promise<Links> {
   // Get both defaultLinks and localLinks from storage
-  const result: { defaultLinks?: Links; localLinks?: Links } = await api.storage.sync.get(["defaultLinks", "localLinks"]);
+  const result: { defaultLinks?: Links; localLinks?: Links } = await api.storage.sync.get([
+    "defaultLinks",
+    "localLinks",
+  ]);
 
   const defaultLinks: Links = {
     github: "https://github.com",
@@ -65,7 +68,10 @@ async function getLinks(): Promise<Links> {
 // when the defaults are already there (the pages read often; only the
 // background needs getLinks()'s refresh of the stored defaults).
 async function readLinks(): Promise<Links> {
-  const result: { defaultLinks?: Links; localLinks?: Links } = await api.storage.sync.get(["defaultLinks", "localLinks"]);
+  const result: { defaultLinks?: Links; localLinks?: Links } = await api.storage.sync.get([
+    "defaultLinks",
+    "localLinks",
+  ]);
   if (!result.defaultLinks) return getLinks();
   return mergeLinks(result.defaultLinks, result.localLinks || {});
 }

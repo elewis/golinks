@@ -49,7 +49,10 @@ describe("add-link form", () => {
     await until(async () => (await local()).zznew === "https://example.com/new", "the link in storage");
     assert.equal(await text("link-status"), "Saved go/zznew");
     await until(
-      () => ev(`chrome.declarativeNetRequest.getDynamicRules().then((rs) => rs.some((r) => JSON.stringify(r.condition).includes("go/zznew")))`),
+      () =>
+        ev(
+          `chrome.declarativeNetRequest.getDynamicRules().then((rs) => rs.some((r) => JSON.stringify(r.condition).includes("go/zznew")))`,
+        ),
       "the rule",
     );
     await fx.chrome.navigate(page, "https://go/zznew");
@@ -116,8 +119,14 @@ describe("add-link form", () => {
     await open(`${fx.chrome.origin}/popup.html`);
     await fill("gh", "https://example.com/mine");
     await click();
-    await until(async () => (await ev(`document.getElementById("add-btn").textContent`)).startsWith("Overwrite"), "the confirm");
-    assert.equal(await ev(`document.getElementById("add-btn").textContent`), "Overwrite go/gh (now -> https://github.com)");
+    await until(
+      async () => (await ev(`document.getElementById("add-btn").textContent`)).startsWith("Overwrite"),
+      "the confirm",
+    );
+    assert.equal(
+      await ev(`document.getElementById("add-btn").textContent`),
+      "Overwrite go/gh (now -> https://github.com)",
+    );
     await sleep(300);
     assert.equal((await local()).gh, undefined, "nothing was written before the confirm");
     // Changing the name drops the confirm.
@@ -125,12 +134,18 @@ describe("add-link form", () => {
     assert.equal(await ev(`document.getElementById("add-btn").textContent`), "Add");
     await fill("gh", "https://example.com/mine");
     await click();
-    await until(async () => (await ev(`document.getElementById("add-btn").textContent`)).startsWith("Overwrite"), "the confirm again");
+    await until(
+      async () => (await ev(`document.getElementById("add-btn").textContent`)).startsWith("Overwrite"),
+      "the confirm again",
+    );
     await click();
     await until(async () => (await local()).gh === "https://example.com/mine", "the overwrite");
     assert.equal(await text("link-status"), "Saved go/gh");
     assert.equal(await ev(`document.getElementById("add-btn").textContent`), "Add");
     await fx.chrome.navigate(page, "https://go/gh");
-    assert.equal(await fx.chrome.waitUrl(page, (u) => u.startsWith("https://example.com/")), "https://example.com/mine");
+    assert.equal(
+      await fx.chrome.waitUrl(page, (u) => u.startsWith("https://example.com/")),
+      "https://example.com/mine",
+    );
   });
 });

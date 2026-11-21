@@ -20,17 +20,38 @@ for (const browser of ["chrome", "firefox"]) {
         assert.deepEqual(out, f.endsWith(".ts") ? Buffer.from(stripTypes(src.toString("utf8"))) : src, f);
       }
     }
-    for (const f of ["manifest.json", "background.js", "api.js", "links.js", "rules.js", "index.js", "index.html", "notfound.html", "notfound.js", "popup.html", "popup.js", "linkform.js"]) {
+    for (const f of [
+      "manifest.json",
+      "background.js",
+      "api.js",
+      "links.js",
+      "rules.js",
+      "index.js",
+      "index.html",
+      "notfound.html",
+      "notfound.js",
+      "popup.html",
+      "popup.js",
+      "linkform.js",
+    ]) {
       assert.ok(existsSync(path.join(dest, f)), `${f} missing from the build`);
     }
-    assert.deepEqual(readdirSync(dest).filter((f) => f.endsWith(".ts")), [], "a .ts file reached the build");
+    assert.deepEqual(
+      readdirSync(dest).filter((f) => f.endsWith(".ts")),
+      [],
+      "a .ts file reached the build",
+    );
   });
 }
 
 test("a .ts file is emitted as .js with its types removed and its code kept", () => {
-  const src = path.join(tmp, "ts-src"), out = path.join(tmp, "ts-out");
+  const src = path.join(tmp, "ts-src"),
+    out = path.join(tmp, "ts-out");
   mkdirSync(src);
-  writeFileSync(path.join(src, "x.ts"), "const n: number = 1;\ninterface A { b: string }\nfunction f(a: A): string { return a.b + n; }\n");
+  writeFileSync(
+    path.join(src, "x.ts"),
+    "const n: number = 1;\ninterface A { b: string }\nfunction f(a: A): string { return a.b + n; }\n",
+  );
   writeFileSync(path.join(src, "y.json"), '{"a": 1}');
   assemble(out, [src]);
   const js = readFileSync(path.join(out, "x.js"), "utf8");
@@ -48,7 +69,8 @@ test("syntax that is not erasable (enum) is an error", () => {
 });
 
 test("x.ts in one folder and x.js in another is a name clash", () => {
-  const a = path.join(tmp, "c-a"), b = path.join(tmp, "c-b");
+  const a = path.join(tmp, "c-a"),
+    b = path.join(tmp, "c-b");
   for (const d of [a, b]) mkdirSync(d);
   writeFileSync(path.join(a, "x.ts"), "1;");
   writeFileSync(path.join(b, "x.js"), "2;");
@@ -57,7 +79,8 @@ test("x.ts in one folder and x.js in another is a name clash", () => {
 });
 
 test("a file name in two source folders is an error and builds nothing", () => {
-  const a = path.join(tmp, "a"), b = path.join(tmp, "b");
+  const a = path.join(tmp, "a"),
+    b = path.join(tmp, "b");
   for (const d of [a, b]) mkdirSync(d);
   writeFileSync(path.join(a, "same.js"), "1");
   writeFileSync(path.join(b, "same.js"), "2");
@@ -90,7 +113,16 @@ test("both manifests give the toolbar a popup, bind Alt+Shift+G to it, and add o
     assert.ok(existsSync(path.join(dir, m.action.default_popup)), browser);
     assert.equal(m.commands._execute_action.suggested_key.default, "Alt+Shift+G", browser);
     assert.ok(m.permissions.includes("activeTab"), browser);
-    assert.deepEqual(m.permissions.filter((p) => !["activeTab", "declarativeNetRequestWithHostAccess", "storage", "webRequest", "webRequestBlocking"].includes(p)), [], browser);
+    assert.deepEqual(
+      m.permissions.filter(
+        (p) =>
+          !["activeTab", "declarativeNetRequestWithHostAccess", "storage", "webRequest", "webRequestBlocking"].includes(
+            p,
+          ),
+      ),
+      [],
+      browser,
+    );
     for (const page of ["popup.html", "notfound.html", "index.html"]) {
       const html = readFileSync(path.join(dir, page), "utf8");
       assert.match(html, /src="linkform\.js"/, `${browser} ${page} loads the shared form`);
@@ -104,7 +136,11 @@ test("pnpm load:firefox rebuilds dist/firefox before it looks for a profile", ()
   build("firefox");
   writeFileSync(marker, "stale");
   // No such profile: the loader fails after the build, without starting Firefox.
-  const r = spawnSync(process.execPath, [path.join(REPO, "scripts/load-firefox.mts"), "--profile", path.join(tmp, "no-such-profile")], { encoding: "utf8" });
+  const r = spawnSync(
+    process.execPath,
+    [path.join(REPO, "scripts/load-firefox.mts"), "--profile", path.join(tmp, "no-such-profile")],
+    { encoding: "utf8" },
+  );
   assert.notEqual(r.status, 0);
   assert.equal(existsSync(marker), false, "dist/firefox was not rebuilt");
   assert.ok(existsSync(path.join(REPO, "dist/firefox/rules.js")));

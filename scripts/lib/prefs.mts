@@ -10,11 +10,20 @@ export interface Pref {
 
 export const REQUIRED_PREFS: readonly Pref[] = [
   { name: "devtools.debugger.remote-enabled", value: true, why: "lets Firefox run the remote debugger server" },
-  { name: "devtools.debugger.prompt-connection", value: false, why: "stops Firefox asking you to approve every connection" },
-  { name: "devtools.chrome.enabled", value: true, why: "lets debugger clients reach the browser itself, which add-on install needs" },
+  {
+    name: "devtools.debugger.prompt-connection",
+    value: false,
+    why: "stops Firefox asking you to approve every connection",
+  },
+  {
+    name: "devtools.chrome.enabled",
+    value: true,
+    why: "lets debugger clients reach the browser itself, which add-on install needs",
+  },
 ];
 
-const line = ({ name, value }: Pick<Pref, "name" | "value">): string => `user_pref(${JSON.stringify(name)}, ${JSON.stringify(value)});`;
+const line = ({ name, value }: Pick<Pref, "name" | "value">): string =>
+  `user_pref(${JSON.stringify(name)}, ${JSON.stringify(value)});`;
 
 function readPrefs(file: string): Map<string, unknown> {
   const prefs = new Map<string, unknown>();
@@ -68,7 +77,9 @@ export function applyPrefs(profileDir: string, prefs: readonly Pref[]): string[]
 export function removePrefs(profileDir: string, lines: readonly string[], created: boolean): void {
   const file = path.join(profileDir, "user.js");
   if (!existsSync(file) || lines.length === 0) return;
-  const kept = readFileSync(file, "utf8").split("\n").filter((l) => !lines.includes(l));
+  const kept = readFileSync(file, "utf8")
+    .split("\n")
+    .filter((l) => !lines.includes(l));
   const text = kept.join("\n");
   if (created && text.trim() === "") unlinkSync(file);
   else writeFileSync(file, text);

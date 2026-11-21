@@ -31,7 +31,11 @@ export const MUTATIONS = {
   // Simulates losing the narrowing: link clicks and form submits from a page are redirected too.
   "redirect-from-pages": ["background.js", "if (details.originUrl) {", "if (false) {"],
   "no-interception-cap": ["search.js", "interceptions.slice(-MAX_INTERCEPTIONS)", "interceptions"],
-  "interception-race": ["search.js", "interceptionsQueue = interceptionsQueue\n    .then(", "interceptionsQueue = Promise.resolve()\n    .then("],
+  "interception-race": [
+    "search.js",
+    "interceptionsQueue = interceptionsQueue\n    .then(",
+    "interceptionsQueue = Promise.resolve()\n    .then(",
+  ],
   "delete-noop": ["index.js", "delete current[golink];", ""],
   "no-storage-refresh": ["rules.js", 'namespace === "sync" &&', 'namespace === "never" &&'],
 };
@@ -41,12 +45,14 @@ export const MUTATIONS = {
 // declarativeNetRequest rules that outrank the extension's own rules. The
 // operation travels in the redirect's query string (a fragment is dropped by
 // the redirect) and the page reports back through its own URL fragment.
-const HARNESS_RULES = ["add", "del", "writes", "burst", "addlink", "seed", "frame", "regex", "log", "flood"].map((op, i) => ({
-  id: i + 1,
-  priority: 100,
-  action: { type: "redirect", redirect: { extensionPath: `/test.html?op=${op}` } },
-  condition: { urlFilter: `||go/zztest-${op}|`, resourceTypes: ["main_frame"] },
-}));
+const HARNESS_RULES = ["add", "del", "writes", "burst", "addlink", "seed", "frame", "regex", "log", "flood"].map(
+  (op, i) => ({
+    id: i + 1,
+    priority: 100,
+    action: { type: "redirect", redirect: { extensionPath: `/test.html?op=${op}` } },
+    condition: { urlFilter: `||go/zztest-${op}|`, resourceTypes: ["main_frame"] },
+  }),
+);
 
 export function buildExtension() {
   const root = path.join(BUILD, `${process.pid}-${randomBytes(3).toString("hex")}`);

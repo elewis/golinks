@@ -28,7 +28,6 @@ const LOADER = path.join(REPO, "scripts/load-firefox.mts");
 const ROOT = path.join(REPO, "tests/load-firefox/.build", `${process.pid}-${randomBytes(3).toString("hex")}`);
 const PROFILE = path.join(ROOT, "profile");
 const ADDON = path.join(ROOT, "ext");
-const ID = "golinks@ethanlew.is";
 
 let port;
 let hitPort;
@@ -59,8 +58,11 @@ async function loadedNames(since) {
 function loader(...extra) {
   const args = [LOADER, "--profile", PROFILE, "--port", String(port), "--addon", ADDON, "--headless", ...extra];
   return new Promise((resolve) =>
-    execFile(process.execPath, args, { timeout: 120_000, env: { ...process.env, GOLINKS_FF_PROFILE: "", GOLINKS_FF_PORT: "" } }, (err, stdout, stderr) =>
-      resolve({ code: err ? (err.code ?? 1) : 0, stdout, stderr }),
+    execFile(
+      process.execPath,
+      args,
+      { timeout: 120_000, env: { ...process.env, GOLINKS_FF_PROFILE: "", GOLINKS_FF_PORT: "" } },
+      (err, stdout, stderr) => resolve({ code: err ? (err.code ?? 1) : 0, stdout, stderr }),
     ),
   );
 }
@@ -143,7 +145,10 @@ test("launches Firefox, sets the prefs, installs the add-on and leaves no debugg
 
 test("nothing about the debugger prefs persists in the profile after Firefox quits", async () => {
   const names = ["devtools.debugger.remote-enabled", "devtools.debugger.prompt-connection", "devtools.chrome.enabled"];
-  const files = () => ["user.js", "prefs.js"].map((f) => (existsSync(path.join(PROFILE, f)) ? readFileSync(path.join(PROFILE, f), "utf8") : ""));
+  const files = () =>
+    ["user.js", "prefs.js"].map((f) =>
+      existsSync(path.join(PROFILE, f)) ? readFileSync(path.join(PROFILE, f), "utf8") : "",
+    );
   assert.ok(runningPid(PROFILE), "Firefox from the previous test should still be running");
   // Right after the loader returns, with no waiting: Firefox's startup save put the prefs into prefs.js,
   // and the loader must have saved them out again itself (a debounced save would not be done yet).
@@ -152,7 +157,8 @@ test("nothing about the debugger prefs persists in the profile after Firefox qui
   for (const n of names) assert.ok(!running.includes(n), `prefs.js must not hold ${n} once the loader has returned`);
   await stopFirefox();
   for (const [i, text] of files().entries()) {
-    for (const n of names) assert.ok(!text.includes(n), `${["user.js", "prefs.js"][i]} must not contain ${n} after Firefox quit`);
+    for (const n of names)
+      assert.ok(!text.includes(n), `${["user.js", "prefs.js"][i]} must not contain ${n} after Firefox quit`);
   }
 });
 
@@ -162,12 +168,17 @@ test("the browser window is not left in remote-control state", async () => {
   // the loader runs.
   await stopFirefox();
   const prefLines = applyPrefs(PROFILE, missingPrefs(PROFILE));
-  const open = spawn(FIREFOX, ["--headless", "--no-remote", "--profile", PROFILE, "--start-debugger-server", String(port)], { detached: true, stdio: "ignore" });
+  const open = spawn(
+    FIREFOX,
+    ["--headless", "--no-remote", "--profile", PROFILE, "--start-debugger-server", String(port)],
+    { detached: true, stdio: "ignore" },
+  );
   open.unref();
   assert.ok(await waitForFirefox(), "Firefox should start");
   removePrefs(PROFILE, prefLines, true); // read at startup; nothing needs to stay in the file
   let client;
-  for (let i = 0; i < 100 && !client; i++) client = await RdpClient.connect(port).catch(() => sleep(200).then(() => null));
+  for (let i = 0; i < 100 && !client; i++)
+    client = await RdpClient.connect(port).catch(() => sleep(200).then(() => null));
   assert.ok(client, "the debugger server should come up");
   // The window sets the cue once it has loaded; wait for that before logging.
   for (let i = 0; i < 100 && (await client.evaluateChrome(READ_CUE)) !== "true"; i++) await sleep(200);
@@ -201,7 +212,10 @@ test("a port held by something else is a clear error", async () => {
 });
 
 test("a running Firefox without the server is left alone unless --restart is given", async () => {
-  const plain = spawn(FIREFOX, ["--headless", "--no-remote", "--profile", PROFILE], { detached: true, stdio: "ignore" });
+  const plain = spawn(FIREFOX, ["--headless", "--no-remote", "--profile", PROFILE], {
+    detached: true,
+    stdio: "ignore",
+  });
   plain.unref();
   const pid = await waitForFirefox();
   assert.ok(pid, "plain Firefox should be running");

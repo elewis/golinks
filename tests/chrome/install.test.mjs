@@ -9,7 +9,10 @@ after(() => fx?.stop());
 
 test("service worker loads without JavaScript errors", async () => {
   const { chrome } = fx;
-  assert.ok(await chrome.waitWorkerLog("GoLinks: extension loaded"), "'GoLinks: extension loaded' never appeared in the service worker console");
+  assert.ok(
+    await chrome.waitWorkerLog("GoLinks: extension loaded"),
+    "'GoLinks: extension loaded' never appeared in the service worker console",
+  );
   const errors = chrome.workerLogs.filter((l) => l.includes("JavaScript error"));
   assert.deepEqual(errors, []);
 });

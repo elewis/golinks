@@ -16,13 +16,6 @@
       "description": "Add a go link"
     }
   },
-  "permissions": [
-    "activeTab",
-    "declarativeNetRequestWithHostAccess",
-    "storage"
-  ],
-  "host_permissions": [
-    "http://go/",
-    "https://go/"
-  ]
+  "permissions": ["activeTab", "declarativeNetRequestWithHostAccess", "storage"],
+  "host_permissions": ["http://go/", "https://go/"]
 }

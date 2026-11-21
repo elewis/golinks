@@ -15,20 +15,26 @@ function home(ini, { snap = true } = {}) {
 }
 
 test("parseProfilesIni reads sections as key/value maps", () => {
-  const s = parseProfilesIni("[General]\nVersion=2\n\n[Profile0]\nName=default\nIsRelative=1\nPath=abc.default\nDefault=1\n");
+  const s = parseProfilesIni(
+    "[General]\nVersion=2\n\n[Profile0]\nName=default\nIsRelative=1\nPath=abc.default\nDefault=1\n",
+  );
   assert.equal(s.Profile0.Path, "abc.default");
   assert.equal(s.General.Version, "2");
 });
 
 test("the profile marked Default=1 is the default", () => {
-  const { h, root } = home("[Profile0]\nName=other\nIsRelative=1\nPath=o.other\n\n[Profile1]\nName=default\nIsRelative=1\nPath=d.default\nDefault=1\n");
+  const { h, root } = home(
+    "[Profile0]\nName=other\nIsRelative=1\nPath=o.other\n\n[Profile1]\nName=default\nIsRelative=1\nPath=d.default\nDefault=1\n",
+  );
   const p = findProfile({ home: h });
   assert.equal(p.dir, path.join(root, "d.default"));
   assert.equal(p.name, "default");
 });
 
 test("an [Install...] Default= entry wins over Default=1", () => {
-  const { h, root } = home("[Install4F96D1932A9F858E]\nDefault=i.release\nLocked=1\n\n[Profile0]\nName=default\nIsRelative=1\nPath=d.default\nDefault=1\n\n[Profile1]\nName=release\nIsRelative=1\nPath=i.release\n");
+  const { h, root } = home(
+    "[Install4F96D1932A9F858E]\nDefault=i.release\nLocked=1\n\n[Profile0]\nName=default\nIsRelative=1\nPath=d.default\nDefault=1\n\n[Profile1]\nName=release\nIsRelative=1\nPath=i.release\n",
+  );
   assert.equal(findProfile({ home: h }).dir, path.join(root, "i.release"));
 });
 
@@ -49,12 +55,18 @@ test("an explicit directory override is used without profiles.ini", () => {
 });
 
 test("an override that is not a directory is a clear error", () => {
-  assert.throws(() => findProfile({ home: "/nonexistent", override: "/nonexistent/prof" }), /profile directory .* does not exist/);
+  assert.throws(
+    () => findProfile({ home: "/nonexistent", override: "/nonexistent/prof" }),
+    /profile directory .* does not exist/,
+  );
 });
 
 test("no profiles.ini anywhere is a clear error that names where it looked", () => {
   const h = mkdtempSync(path.join(os.tmpdir(), "golinks-home-"));
-  assert.throws(() => findProfile({ home: h }), /No Firefox profile found.*snap\/firefox\/common\/\.mozilla\/firefox\/profiles\.ini/s);
+  assert.throws(
+    () => findProfile({ home: h }),
+    /No Firefox profile found.*snap\/firefox\/common\/\.mozilla\/firefox\/profiles\.ini/s,
+  );
 });
 
 test("runningPid reads the pid from the profile lock symlink", () => {

@@ -24,7 +24,7 @@ function goUrlFromSearch(url: string): string | null {
     // "go/" followed by a non-empty link name (no whitespace), then anything.
     const match = query.match(/^go\/(\S+(?:\s.*)?)$/i);
     if (match) {
-      return "https://go/" + encodeURI(match[1]);
+      return `https://go/${encodeURI(match[1])}`;
     }
   }
   return null;
