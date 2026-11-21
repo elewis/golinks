@@ -12,7 +12,7 @@ golinks/
 ├── chrome/          # Chrome-only: manifest.json, background.ts
 ├── firefox/         # Firefox-only: manifest.json, background.ts, search.ts
 ├── types/           # .d.ts globals for the type check (Api, Rule, per browser); never built
-├── scripts/         # build.mts (emits dist/<browser>/), load-firefox.mts, lib/*.mts; run by Node's type stripping
+├── scripts/         # build.mts (emits dist/<browser>/), load-firefox.mts, screenshot.mts, lib/*.mts; run by Node's type stripping
 ├── tsconfig.*.json  # strict type check: base, firefox (common+firefox), chrome (common+chrome), scripts
 └── dist/            # git-ignored build output: load this, zip this for the stores
 ```
@@ -22,23 +22,27 @@ The extension files are classic scripts that share globals: no `import`/`export`
 
 ### Key Files
 - `common/api.ts` - namespace shim, loaded first everywhere: `const api: Api = globalThis.browser ?? globalThis.chrome!;` (`Api` comes from `types/`, per browser). All shared code calls `api.*` (Promise-based MV3 calls, valid in both browsers).
-- `common/links.ts` - link storage/retrieval from browser sync storage (`getLinks()`, default links)
+- `common/links.ts` - link storage/retrieval from browser sync storage (`getLinks()`, default links; `readLinks()`: the same merged links without writing storage, for pages)
 - `common/rules.ts` - rule generation (`get_rule()`, `escapeRegex()`), the serialised `refreshRules()` queue, `startRules()`, and the storage change listener
-- `common/index.html`, `common/index.ts` - help page for `go/help` and bare `go/`, with the add/delete link form
-- `common/notfound.html` - 404 page for unmatched go/ links
+- `common/linkform.ts` - the one add-link form, used by every page below. Pure logic (`checkLink()`: name/URL validation and the name-taken lookup; `linksForUrl()`: existing links for a URL, one trailing `/` ignored; `saveLink()`) and `initLinkForm(container, {name?, url?})`, which builds the form (`#link-name`, `#link-url`, `#add-btn`, `#link-existing-list`, `#link-status`) into a page's `#add-link` element. Needs `links.js`.
+- `common/popup.html`, `common/popup.ts` - toolbar popup "Add go link" (also Alt+Shift+G): the form with the active tab's URL filled in (needs `activeTab`; only http(s) URLs), name empty and focused
+- `common/index.html`, `common/index.ts` - help page for `go/help` and bare `go/`: the shared form, the user links with delete buttons, the default links
+- `common/notfound.html`, `common/notfound.ts` - not-found page for unmatched go/ links: the shared form with the requested name filled in (from `?name=`), URL focused
 - `firefox/search.ts` - Firefox-only pure logic: `goUrlFromSearch()`, `recordInterception()`, `MAX_INTERCEPTIONS`
-- `chrome/manifest.json`, `firefox/manifest.json` - Manifest v3, `declarativeNetRequestWithHostAccess` and `storage` permissions (Firefox adds `webRequest`)
+- `chrome/manifest.json`, `firefox/manifest.json` - Manifest v3, `declarativeNetRequestWithHostAccess`, `storage` and `activeTab` permissions (Firefox adds `webRequest`); both declare `action.default_popup` and the `_execute_action` command (Alt+Shift+G)
 - `chrome/background.ts` - service worker: `importScripts("api.js", "links.js", "rules.js")`, then `startRules()`
 - `firefox/background.ts` - event page (manifest `scripts` lists the built `api.js`, `links.js`, `rules.js`, `search.js`, `background.js`): host-permission warning, `startRules()`, webRequest interception and interception recording
 
 ### How It Works
 1. **Initialization**: Background script loads links from browser storage, creates redirect rules
 2. **Storage Integration**: Uses browser sync storage for configurable links that sync across devices  
-3. **Dynamic Updates**: Storage change listener automatically updates rules when links are modified
-4. **Rule Generation**: Single `get_rule()` function (in `common/rules.ts`) handles both parameterized (`%s`) and static redirects
-5. **Protocol Handling**: Firefox uses webRequest to catch bare `go/` URLs from address bar searches
+3. **Adding links**: three ways, one form (`common/linkform.ts`): the toolbar popup / Alt+Shift+G, the not-found page, go/help. Saving writes `localLinks` in sync storage (one `storage.set`), so the rules refresh as for any change. A name that is already a link (user or default) is not overwritten until the user clicks the save button again, which then reads "Overwrite go/x (now -> <url>)". Links whose destination equals the URL in the form (user and default, a trailing `/` ignored) are listed in the form and never block another name. Names must be non-empty, without `/`, `?`, `#` or whitespace, and not `help`; the URL must be a full http(s) URL (a `%s` is checked as a placeholder), since one invalid stored redirect would make every later rule update fail.
+4. **Dynamic Updates**: Storage change listener automatically updates rules when links are modified
+5. **Rule Generation**: Single `get_rule()` function (in `common/rules.ts`) handles both parameterized (`%s`) and static redirects
+6. **Protocol Handling**: Firefox uses webRequest to catch bare `go/` URLs from address bar searches
 
 ### Link Types
+- **Not found**: any other `go/<name>` (priority 1) redirects, by `regexSubstitution`, to the extension's `notfound.html?name=<name>` (first path segment, `api.runtime.getURL`). The regex covers the whole URL, since a substitution replaces only what it matches.
 - **Static**: `"github": "https://github.com"` → `go/github` redirects to GitHub. Matches the exact name only (regexFilter `^https?://go/<name>$`, name escaped), so `*`, `^`, `|`, `.` in a name are literal and `go/githubx` does not match.
 - **Parameterized**: `"githubsearch": "https://github.com/search?q=%s"` → `go/githubsearch/query` passes `query` as parameter. regexFilter `^https?://go/<name>(?:/(.*))?$`: the parameter is everything after `go/<name>/` (`go/cs/a/b` passes `a/b`), bare `go/cs` passes an empty one, and `go/csx` does not match the `cs` rule.
 
@@ -83,6 +87,11 @@ Shared code lives once, in `common/`, so it cannot drift. There is no diff-based
 - Extensions initialize with default links if storage is empty
 - Firefox webRequest intercepts search queries to handle `go/github` typed directly in address bar
 
+## Screenshots
+`pnpm screenshot [firefox|chrome|both] [page ...]` builds the extension, installs it in headless Firefox and/or Chrome (the test harnesses), stores sample links (`docs` and `wiki` pointing at one URL, `board`, plus the defaults) and saves a PNG per page to `.screenshots/<browser>/<page>.png` (git-ignored; each path is printed). About 4-8 s per browser. Pages: `popup` (sized to its content, at most 800x600, with the sample tab URL typed into the form), `not-found` (name `zzsample`), `help`, `overwrite` (the popup after clicking save over a taken name), or any extension page path with a query string (`notfound.html?name=x`); default: popup, not-found, help. Full pages are 1280x800. It is not a test: it checks nothing and the suites do not run it. **After each UI change, run it and Read the PNGs** to look at what you changed, in both browsers. Needs the same programs as the browser suites, so hold the hive lease `browser-suites` while it runs when other sessions share the machine.
+
+Firefox cannot screenshot or script an extension page, so the shot is of a web page on `go:<port>` (served by the script, resolving to loopback in the harness) that embeds the harness page (`op=frame` in `tests/firefox/harness/test.js`), which embeds the extension page. The popup's tab-URL prefill is typed into the field instead of coming from a tab; the real toolbar popup frame is not captured.
+
 ## Testing
 
 ### Test workflow
@@ -120,9 +129,9 @@ Builds `common/` + `firefox/` into a throwaway copy and installs it as a tempora
 
 **Prerequisites**: Node 24, pnpm, snap Firefox and `/snap/bin/geckodriver`. The copy is built in `tests/firefox/.build/` (git-ignored, deleted after the run) because snap-confined Firefox cannot read `/tmp`.
 
-**Covers**: the background page loads with no JavaScript errors (startup errors fail the run); `go/github`, `go/cs/test`, `http://go/gh`, `go/help`, `go/` and an unknown link; adding and deleting a link through the options form updates the redirect rules; a burst of overlapping storage writes never fails with "Duplicate rule ID" and leaves the rules for the last write; link names containing regex characters (`a.b`, `c++`) match literally; `go/csx` does not match the `cs` rule. URLs that merely contain `go/` (`https://github.com/golang/go/issues`, `https://foo.go/bar`, `?q=ago/github`, `?other=go/github`) are not redirected; a navigation with no origin to a URL carrying `go/github` in `q`, `p`, `query` or `text` on any host (what the address bar produces: google.com, google.co.uk, a custom engine) is; a link click or GET form submit from an http page to such a URL is not. Interceptions are recorded in `storage.local.interceptions` with the right `from`/`to`, a non-intercepted URL adds none, and 150 overlapping records keep only the last 100 in order.
+**Covers**: the shared add-link form (`addlink.test.mjs`, via the harness): `go/zznew` lands on `notfound.html?name=zznew` with the name filled in and the URL focused, saving there makes `go/zznew` redirect; the popup page renders the same form; invalid names write nothing; the links for a URL are listed (trailing `/` ignored); a taken name needs the confirm, naming its current destination, before it is overwritten; go/help carries the form. The background page loads with no JavaScript errors (startup errors fail the run); `go/github`, `go/cs/test`, `http://go/gh`, `go/help`, `go/` and an unknown link; adding and deleting a link through the options form updates the redirect rules; a burst of overlapping storage writes never fails with "Duplicate rule ID" and leaves the rules for the last write; link names containing regex characters (`a.b`, `c++`) match literally; `go/csx` does not match the `cs` rule. URLs that merely contain `go/` (`https://github.com/golang/go/issues`, `https://foo.go/bar`, `?q=ago/github`, `?other=go/github`) are not redirected; a navigation with no origin to a URL carrying `go/github` in `q`, `p`, `query` or `text` on any host (what the address bar produces: google.com, google.co.uk, a custom engine) is; a link click or GET form submit from an http page to such a URL is not. Interceptions are recorded in `storage.local.interceptions` with the right `from`/`to`, a non-intercepted URL adds none, and 150 overlapping records keep only the last 100 in order.
 
-**Does not cover**: typing protocol-less `go/github` in the real address bar (WebDriver cannot drive it, so only the webRequest listener is exercised; WebDriver navigation stands in for typing, as neither has an originUrl), clicks from `data:` pages, the about:debugging UI, signed or permanent installs, Firefox Sync, private windows, Chrome.
+**Does not cover**: the real toolbar click, Alt+Shift+G and the popup's prefill from the active tab (the popup is only opened as a tab, where it is the active tab itself), typing protocol-less `go/github` in the real address bar (WebDriver cannot drive it, so only the webRequest listener is exercised; WebDriver navigation stands in for typing, as neither has an originUrl), clicks from `data:` pages, the about:debugging UI, signed or permanent installs, Firefox Sync, private windows, Chrome.
 
 Set `GOLINKS_MUTATE=<name>` (names in `tests/firefox/lib/extension.mjs`; each names the built file it edits, e.g. `rules.js` or `background.js`) to break the copy on purpose and check that a test goes red.
 
@@ -136,9 +145,9 @@ Builds `common/` + `chrome/` into a throwaway copy and installs it in headless G
 
 **Launch flags**: `--headless=new --no-sandbox --no-first-run --disable-gpu --enable-unsafe-extension-debugging --remote-debugging-port=<free port> --user-data-dir=<temp> --host-resolver-rules="MAP go 127.0.0.1"`. Branded Chrome ignores `--load-extension`, so the extension is installed with the DevTools method `Extensions.loadUnpacked`, which needs `--enable-unsafe-extension-debugging`. Chrome has no equivalent of Firefox's `network.dns.localDomains`, so `--host-resolver-rules` makes the `go` host resolve. Every Chrome process group started is killed on exit, Ctrl-C or SIGTERM.
 
-**Covers**: the service worker starts with no JavaScript errors (its console is captured from the first line); `https://go/github`, `https://go/cs/test`, `http://go/gh`, `https://go/help`, `https://go/` and an unknown link; adding and deleting a link through the options form updates the redirect rules; a burst of overlapping storage writes never fails and leaves the rules for the last write; link names containing regex characters (`a.b`, `c++`) match literally; `go/csx` does not match the `cs` rule; `https://github.com/golang/go/issues` is not redirected. Pages never touch the internet: requests that survive the extension's redirects are answered with an empty 200.
+**Covers**: the shared add-link form (`addlink.test.mjs`): not-found page prefill and focus, save then redirect, `go/csx/query` names `csx`, popup page, validation writes nothing, existing links listed, overwrite confirm. The service worker starts with no JavaScript errors (its console is captured from the first line); `https://go/github`, `https://go/cs/test`, `http://go/gh`, `https://go/help`, `https://go/` and an unknown link; adding and deleting a link through the options form updates the redirect rules; a burst of overlapping storage writes never fails and leaves the rules for the last write; link names containing regex characters (`a.b`, `c++`) match literally; `go/csx` does not match the `cs` rule; `https://github.com/golang/go/issues` is not redirected. Pages never touch the internet: requests that survive the extension's redirects are answered with an empty 200.
 
-**Does not cover**: typing `go/github` in the real address bar (Chrome treats it as a search; DevTools cannot drive the omnibox), `chrome://extensions`, packed or Web Store installs, Chrome Sync, incognito, Firefox.
+**Does not cover**: the real toolbar click, Alt+Shift+G and the popup's prefill from the active tab (opened as a tab, the popup is the active tab), typing `go/github` in the real address bar (Chrome treats it as a search; DevTools cannot drive the omnibox), `chrome://extensions`, packed or Web Store installs, Chrome Sync, incognito, Firefox.
 
 Set `GOLINKS_MUTATE=<name>` (names in `tests/chrome/lib/extension.mjs`) to break the copy on purpose and check that a test goes red.
 

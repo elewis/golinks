@@ -105,12 +105,17 @@ async function updateRulesWithLinks(links: Links): Promise<void> {
 
   new_rules.push({
     priority: 1,
+    // The page gets the requested name (first path segment) as ?name=. The
+    // regex covers the whole URL, since the substitution replaces only what
+    // it matches.
     action: {
       type: "redirect",
-      redirect: { extensionPath: "/notfound.html" },
+      redirect: {
+        regexSubstitution: api.runtime.getURL("notfound.html") + "?name=\\1",
+      },
     },
     condition: {
-      urlFilter: "||go/*",
+      regexFilter: "^https?://go/([^/?#]*)(?:[/?#].*)?$",
       resourceTypes: ["main_frame"],
     },
   });

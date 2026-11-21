@@ -38,6 +38,7 @@ export function fakeApi() {
       },
     },
     webRequest: { onBeforeRequest: { addListener: (...args) => listeners.webRequest.push(args) } },
+    runtime: { getURL: (p) => `chrome-extension://fake-id/${p}` },
     permissions: { contains: async () => true },
   };
   return { api, store, calls, listeners, rules: () => rules };

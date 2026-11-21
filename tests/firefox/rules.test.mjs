@@ -48,13 +48,13 @@ describe("link names are matched literally", () => {
   test("the dot in a.b does not match any character", async () => {
     await navigate("https://go/aXb/test");
     const final = await fx.ff.waitUrl((u) => u.startsWith("moz-extension://"));
-    assert.ok(final.endsWith("/notfound.html"), `go/aXb/test -> ${final}`);
+    assert.ok(final.includes("/notfound.html?name="), `go/aXb/test -> ${final}`);
   });
 
   test("go/csx does not match the cs rule", async () => {
     await navigate("https://go/csx/test");
     const final = await fx.ff.waitUrl((u) => u.startsWith("moz-extension://"));
-    assert.ok(final.endsWith("/notfound.html"), `go/csx/test -> ${final}`);
+    assert.ok(final.includes("/notfound.html?name="), `go/csx/test -> ${final}`);
   });
 
   test("no errors were logged", () => assert.deepEqual(errors(), []));

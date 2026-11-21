@@ -4,3 +4,4 @@ tests/chrome/.build/
 tests/load-firefox/.build/
 dist/
 node_modules/
+.screenshots/

@@ -35,7 +35,7 @@
     });
   }
 
-  function populateUserLinksWithForm(links: Links): void {
+  function populateUserLinks(links: Links): void {
     const table = byId("user-links");
     table.innerHTML = "";
 
@@ -56,54 +56,20 @@
         const current = await getLocalLinks();
         delete current[golink];
         await api.storage.sync.set({ localLinks: current });
-        populateUserLinksWithForm(current);
       });
 
       deleteCell.appendChild(deleteBtn);
       row.appendChild(deleteCell);
       table.appendChild(row);
     });
-
-    const formRow = document.createElement("tr");
-    const nameCell = document.createElement("td");
-    const urlCell = document.createElement("td");
-    const addCell = document.createElement("td");
-
-    nameCell.innerHTML =
-      '<input type="text" id="link-name" placeholder="go/newlink" required>';
-    urlCell.innerHTML =
-      '<input type="text" id="link-url" placeholder="https://example.com" required>';
-
-    const addBtn = document.createElement("button");
-    addBtn.textContent = "Add";
-    addBtn.type = "submit";
-    addBtn.id = "add-btn";
-    addCell.appendChild(addBtn);
-
-    formRow.appendChild(nameCell);
-    formRow.appendChild(urlCell);
-    formRow.appendChild(addCell);
-    table.appendChild(formRow);
   }
 
-  // Registered once: the form element survives re-renders (only its table is
-  // rebuilt), and the links are read from storage at submit time.
-  byId("add-link-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const linkName = byId<HTMLInputElement>("link-name")
-      .value.trim()
-      .replace(/^go\//, "");
-    const linkUrl = byId<HTMLInputElement>("link-url").value.trim();
-
-    if (linkName && linkUrl) {
-      const current = await getLocalLinks();
-      current[linkName] = linkUrl;
-      await api.storage.sync.set({ localLinks: current });
-      populateUserLinksWithForm(current);
-    }
+  initLinkForm(byId("add-link"));
+  // The shared form (and deletes from other pages) change the stored links.
+  api.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === "sync" && changes.localLinks) populateUserLinks((changes.localLinks.newValue as Links | undefined) || {});
   });
 
-  populateUserLinksWithForm(localLinks);
+  populateUserLinks(localLinks);
   populateTable("default-links", defaultLinks);
 })();

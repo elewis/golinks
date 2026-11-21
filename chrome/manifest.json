@@ -6,7 +6,18 @@
   "background": {
     "service_worker": "background.js"
   },
+  "action": {
+    "default_title": "Add go link",
+    "default_popup": "popup.html"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+Shift+G" },
+      "description": "Add a go link"
+    }
+  },
   "permissions": [
+    "activeTab",
     "declarativeNetRequestWithHostAccess",
     "storage"
   ],

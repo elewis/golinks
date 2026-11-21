@@ -128,6 +128,18 @@ export class Firefox {
     const id = Object.values(el)[0];
     return this.#http("POST", this.#s(`/element/${id}/click`), {});
   }
+  /** Resize the (headless) window; the viewport follows. */
+  setWindowRect(width, height) {
+    return this.#http("POST", this.#s("/window/rect"), { width, height });
+  }
+  /** Run a script in a normal web page (not an extension page) and return its value. */
+  execute(script) {
+    return this.#http("POST", this.#s("/execute/sync"), { script, args: [] });
+  }
+  /** PNG of the current page, as a Buffer. */
+  async screenshot() {
+    return Buffer.from(await this.#http("GET", this.#s("/screenshot")), "base64");
+  }
   currentUrl() {
     return this.#http("GET", this.#s("/url"));
   }

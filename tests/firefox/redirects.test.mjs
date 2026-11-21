@@ -37,6 +37,6 @@ describe("redirects", () => {
   test("http scheme: http://go/gh", () => redirectsTo("http://go/gh", "https://github.com/"));
   test("https://go/help renders index.html", () => rendersExtensionPage("https://go/help", "index.html"));
   test("https://go/ renders index.html", () => rendersExtensionPage("https://go/", "index.html"));
-  test("unknown link renders notfound.html", () =>
-    rendersExtensionPage("https://go/nonexistent", "notfound.html"));
+  test("unknown link renders notfound.html carrying its name", () =>
+    rendersExtensionPage("https://go/nonexistent", "notfound.html?name=nonexistent"));
 });

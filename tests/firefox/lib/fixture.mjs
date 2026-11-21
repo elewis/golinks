@@ -18,6 +18,7 @@ export async function startFirefox() {
   }
   return {
     ff,
+    dir: build.dir,
     async stop() {
       await ff.stop();
       removeBuild(build.root);

@@ -201,6 +201,17 @@ export class Chrome {
     return result.value;
   }
 
+  /** Give the page a viewport of exactly width x height CSS pixels. */
+  async setViewport(page, width, height) {
+    await this.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, page.sessionId);
+  }
+
+  /** PNG of the page's viewport, as a Buffer. */
+  async screenshot(page) {
+    const { data } = await this.send("Page.captureScreenshot", { format: "png" }, page.sessionId);
+    return Buffer.from(data, "base64");
+  }
+
   async targetUrl(targetId) {
     const { targetInfos } = await this.send("Target.getTargets");
     return targetInfos.find((t) => t.targetId === targetId)?.url ?? "";

@@ -90,9 +90,27 @@ test("updateRulesWithLinks: link rules, then help, root and not-found, ids 1..N"
   const rules = fake.rules();
   assert.deepEqual(rules.map((r) => r.id), [1, 2, 3, 4, 5]);
   assert.deepEqual(rules.map((r) => r.priority), [5, 5, 2, 2, 1]);
-  assert.deepEqual(rules.slice(2).map((r) => r.condition.urlFilter), ["||go/help|", "||go/|", "||go/*"]);
+  assert.deepEqual(rules.slice(2, 4).map((r) => r.condition.urlFilter), ["||go/help|", "||go/|"]);
   assert.equal(rules[2].action.redirect.extensionPath, "/index.html");
-  assert.equal(rules[4].action.redirect.extensionPath, "/notfound.html");
+  assert.equal(rules[4].condition.regexFilter, "^https?://go/([^/?#]*)(?:[/?#].*)?$");
+  assert.equal(rules[4].action.redirect.regexSubstitution, "chrome-extension://fake-id/notfound.html?name=\\1");
+});
+
+test("not-found rule: go/<name> reaches notfound.html?name=<name>; go/csx is not the cs rule", () => {
+  const { fake, get } = sb();
+  return get('updateRulesWithLinks({ cs: "https://s/%s" })').then(() => {
+    const nf = fake.rules().at(-1);
+    const re = new RegExp(nf.condition.regexFilter);
+    const to = (u) => u.replace(re, nf.action.redirect.regexSubstitution.replace("\\1", "$1"));
+    assert.equal(to("https://go/foo"), "chrome-extension://fake-id/notfound.html?name=foo");
+    assert.equal(to("http://go/csx"), "chrome-extension://fake-id/notfound.html?name=csx");
+    assert.equal(to("https://go/foo?x=1#y"), "chrome-extension://fake-id/notfound.html?name=foo");
+    assert.equal(to("https://go/a/b"), "chrome-extension://fake-id/notfound.html?name=a");
+    const cs = new RegExp(fake.rules()[0].condition.regexFilter);
+    assert.equal(cs.test("https://go/csx"), false);
+    assert.equal(nf.priority, 1);
+    assert.equal(re.test("https://github.com/go/x"), false);
+  });
 });
 
 test("updateRulesWithLinks removes the previous rules", async () => {

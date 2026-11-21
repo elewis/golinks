@@ -8,6 +8,11 @@
 //   op=writes  add zza, zzb, zzc then delete zzb, counting the form's
 //              storage.sync.set calls per action
 //   op=burst  write storage 6 times without awaiting between writes
+//   op=addlink  drive the shared add-link form on notfound.html, popup.html
+//               and index.html (prefill, validation, existing links, overwrite)
+//   op=seed     (pnpm screenshot) store the links from seed.json
+//   op=frame    (pnpm screenshot) show the extension page named in shot.json
+//               in a full-window iframe, fill its fields, report its size
 //   op=regex  store links whose names contain regex characters (a.b, c++)
 const LINK = { name: "zzmine", url: "https://example.com/mine" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -102,6 +107,96 @@ async function run(cmd) {
     );
     await waitFor(() => hasRule("zzburst6"), "rule for the last write");
     return {};
+  }
+  if (cmd.op === "addlink") {
+    const out = {};
+    const local = async () => (await browser.storage.sync.get("localLinks")).localLinks || {};
+    const open = async (src) => {
+      const frame = document.createElement("iframe");
+      frame.src = src;
+      document.body.appendChild(frame);
+      await waitFor(() => frame.contentDocument?.getElementById("add-btn"), "form in " + src);
+      const doc = frame.contentDocument;
+      const set = (name, url) => {
+        doc.getElementById("link-name").value = name;
+        doc.getElementById("link-url").value = url;
+        doc.getElementById("link-name").dispatchEvent(new Event("input"));
+        doc.getElementById("link-url").dispatchEvent(new Event("input"));
+      };
+      return { doc, set, id: (i) => doc.getElementById(i) };
+    };
+    // Not-found page: name prefilled, URL empty and focused.
+    const nf = await open("notfound.html?name=zznew");
+    out.nfName = nf.id("link-name").value;
+    out.nfUrl = nf.id("link-url").value;
+    out.nfFocus = nf.doc.activeElement.id;
+    nf.set("zznew", "https://example.com/new");
+    nf.id("add-btn").click();
+    await waitFor(async () => (await local()).zznew === "https://example.com/new", "zznew stored");
+    await waitFor(() => hasRule("zznew"), "rule for zznew");
+    await waitFor(() => nf.id("link-status").textContent === "Saved go/zznew", "saved message");
+    // Popup page: the same form with the URL focused (no tab URL to fill).
+    const pop = await open("popup.html");
+    out.popName = pop.id("link-name").value;
+    out.popFocus = pop.doc.activeElement.id;
+    // Validation writes nothing.
+    const before = JSON.stringify(await local());
+    for (const name of ["", "a/b", "a b", "help"]) {
+      pop.set(name, "https://x.test");
+      pop.id("add-btn").click();
+      await waitFor(() => pop.id("link-name-error").textContent, "error for " + JSON.stringify(name));
+    }
+    await sleep(300);
+    out.validationWrote = JSON.stringify(await local()) !== before;
+    // Existing links for the URL are listed, trailing slash ignored.
+    pop.set("", "https://github.com/");
+    await waitFor(() => pop.doc.querySelectorAll("#link-existing-list li").length, "existing list");
+    out.existing = [...pop.doc.querySelectorAll("#link-existing-list li")].map((l) => l.textContent).sort();
+    // Overwrite needs a confirm that names the current destination.
+    pop.set("gh", "https://example.com/mine");
+    pop.id("add-btn").click();
+    await waitFor(() => pop.id("add-btn").textContent.startsWith("Overwrite"), "confirm button");
+    out.confirmLabel = pop.id("add-btn").textContent;
+    await sleep(300);
+    out.wroteBeforeConfirm = "gh" in (await local());
+    pop.id("add-btn").click();
+    await waitFor(async () => (await local()).gh === "https://example.com/mine", "overwrite stored");
+    // go/help has the same form.
+    const help = await open("index.html");
+    out.helpForms = help.doc.querySelectorAll("#add-link #add-link-form").length;
+    return out;
+  }
+  if (cmd.op === "seed") {
+    const seed = await (await fetch("seed.json")).json();
+    await browser.storage.sync.set({ localLinks: seed.localLinks });
+    for (const name of Object.keys(seed.localLinks)) await waitFor(() => hasRule(name), "rule for " + name);
+    return {};
+  }
+  if (cmd.op === "frame") {
+    const shot = await (await fetch("shot.json")).json();
+    document.body.style.margin = "0";
+    const frame = document.createElement("iframe");
+    frame.style.cssText = "border:0;width:100vw;height:100vh;display:block";
+    frame.src = shot.src;
+    document.body.appendChild(frame);
+    const doc = await waitFor(() => frame.contentDocument?.getElementById("add-btn") && frame.contentDocument, "form in " + shot.src);
+    const fire = (el) => el.dispatchEvent(new Event("input", { bubbles: true }));
+    for (const [id, value] of Object.entries(shot.fill || {})) {
+      const el = doc.getElementById(id);
+      el.value = value;
+      fire(el);
+    }
+    if (shot.click) {
+      doc.getElementById(shot.click).click();
+      await sleep(300);
+    }
+    await sleep(300);
+    if (parent !== window) parent.postMessage("frame-ready", "*");
+    const rects = [...doc.querySelectorAll("body *")].map((e) => e.getBoundingClientRect());
+    return {
+      width: Math.ceil(Math.max(...rects.map((r) => r.right))),
+      height: Math.ceil(Math.max(...rects.map((r) => r.bottom))),
+    };
   }
   if (cmd.op === "regex") {
     await browser.storage.sync.set({

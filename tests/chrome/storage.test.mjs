@@ -30,7 +30,7 @@ async function finalUrl(url, predicate) {
   return fx.chrome.waitUrl(page, predicate);
 }
 
-const isNotFound = (u) => u === `${fx.chrome.origin}/notfound.html`;
+const isNotFound = (u) => u.startsWith(`${fx.chrome.origin}/notfound.html?name=`);
 const hasRule = () =>
   fx.chrome.evaluate(
     form,

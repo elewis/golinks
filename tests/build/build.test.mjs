@@ -20,7 +20,7 @@ for (const browser of ["chrome", "firefox"]) {
         assert.deepEqual(out, f.endsWith(".ts") ? Buffer.from(stripTypes(src.toString("utf8"))) : src, f);
       }
     }
-    for (const f of ["manifest.json", "background.js", "api.js", "links.js", "rules.js", "index.js", "index.html", "notfound.html"]) {
+    for (const f of ["manifest.json", "background.js", "api.js", "links.js", "rules.js", "index.js", "index.html", "notfound.html", "notfound.js", "popup.html", "popup.js", "linkform.js"]) {
       assert.ok(existsSync(path.join(dest, f)), `${f} missing from the build`);
     }
     assert.deepEqual(readdirSync(dest).filter((f) => f.endsWith(".ts")), [], "a .ts file reached the build");
@@ -80,6 +80,23 @@ test("every script the manifests and pages load exists in the build", () => {
   for (const dir of [ff, cr])
     for (const [, s] of readFileSync(path.join(dir, "index.html"), "utf8").matchAll(/src="([^"]+)"/g))
       assert.ok(existsSync(path.join(dir, s)), s);
+});
+
+test("both manifests give the toolbar a popup, bind Alt+Shift+G to it, and add only activeTab", () => {
+  for (const browser of ["chrome", "firefox"]) {
+    const dir = build(browser, path.join(tmp, `m-${browser}`));
+    const m = JSON.parse(readFileSync(path.join(dir, "manifest.json"), "utf8"));
+    assert.equal(m.action.default_popup, "popup.html", browser);
+    assert.ok(existsSync(path.join(dir, m.action.default_popup)), browser);
+    assert.equal(m.commands._execute_action.suggested_key.default, "Alt+Shift+G", browser);
+    assert.ok(m.permissions.includes("activeTab"), browser);
+    assert.deepEqual(m.permissions.filter((p) => !["activeTab", "declarativeNetRequestWithHostAccess", "storage", "webRequest", "webRequestBlocking"].includes(p)), [], browser);
+    for (const page of ["popup.html", "notfound.html", "index.html"]) {
+      const html = readFileSync(path.join(dir, page), "utf8");
+      assert.match(html, /src="linkform\.js"/, `${browser} ${page} loads the shared form`);
+      assert.match(html, /id="add-link"/, `${browser} ${page}`);
+    }
+  }
 });
 
 test("pnpm load:firefox rebuilds dist/firefox before it looks for a profile", () => {

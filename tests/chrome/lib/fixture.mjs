@@ -17,6 +17,7 @@ export async function startChrome() {
   }
   return {
     chrome,
+    dir: build.dir,
     async stop() {
       await chrome.stop();
       removeBuild(build.root);

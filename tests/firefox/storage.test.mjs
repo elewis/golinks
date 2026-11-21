@@ -31,7 +31,7 @@ async function finalUrl(url, predicate) {
   return fx.ff.waitUrl(predicate);
 }
 
-const isNotFound = (u) => u.startsWith("moz-extension://") && u.endsWith("/notfound.html");
+const isNotFound = (u) => u.startsWith("moz-extension://") && u.includes("/notfound.html?name=");
 
 describe("link storage changes update the rules", () => {
   test("link does not exist before it is added", async () => {

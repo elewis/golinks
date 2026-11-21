@@ -20,7 +20,7 @@ async function finalUrl(url, predicate) {
   await fx.chrome.navigate(page, url);
   return fx.chrome.waitUrl(page, predicate);
 }
-const isNotFound = (u) => u === `${fx.chrome.origin}/notfound.html`;
+const isNotFound = (u) => u.startsWith(`${fx.chrome.origin}/notfound.html?name=`);
 const setLinks = (links) =>
   fx.chrome.evaluate(ext, `chrome.storage.sync.set({ localLinks: ${JSON.stringify(links)} }).then(() => true)`);
 const ruleCount = () => fx.chrome.evaluate(ext, `chrome.declarativeNetRequest.getDynamicRules().then((r) => r.length)`);

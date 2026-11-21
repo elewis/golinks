@@ -30,3 +30,12 @@ async function getLinks(): Promise<Links> {
   // Merge links: localLinks override defaultLinks
   return { ...defaultLinks, ...localLinks };
 }
+
+// The merged links as getLinks() returns them, but without writing storage
+// when the defaults are already there (the pages read often; only the
+// background needs getLinks()'s refresh of the stored defaults).
+async function readLinks(): Promise<Links> {
+  const result: { defaultLinks?: Links; localLinks?: Links } = await api.storage.sync.get(["defaultLinks", "localLinks"]);
+  if (!result.defaultLinks) return getLinks();
+  return { ...result.defaultLinks, ...(result.localLinks || {}) };
+}

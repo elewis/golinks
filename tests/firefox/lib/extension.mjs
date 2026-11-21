@@ -41,7 +41,7 @@ export const MUTATIONS = {
 // declarativeNetRequest rules that outrank the extension's own rules. The
 // operation travels in the redirect's query string (a fragment is dropped by
 // the redirect) and the page reports back through its own URL fragment.
-const HARNESS_RULES = ["add", "del", "writes", "burst", "regex", "log", "flood"].map((op, i) => ({
+const HARNESS_RULES = ["add", "del", "writes", "burst", "addlink", "seed", "frame", "regex", "log", "flood"].map((op, i) => ({
   id: i + 1,
   priority: 100,
   action: { type: "redirect", redirect: { extensionPath: `/test.html?op=${op}` } },
@@ -60,7 +60,7 @@ export function buildExtension() {
   writeFileSync(path.join(dir, "harness-rules.json"), JSON.stringify(HARNESS_RULES));
   const manifestPath = path.join(dir, "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  manifest.web_accessible_resources[0].resources.push("test.html");
+  manifest.web_accessible_resources[0].resources.push("test.html", "popup.html");
   manifest.declarative_net_request = {
     rule_resources: [{ id: "harness", enabled: true, path: "harness-rules.json" }],
   };
