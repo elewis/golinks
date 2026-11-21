@@ -49,7 +49,7 @@ function get_rule(golink, destination) {
         },
       },
       condition: {
-        regexFilter: "^https?://go/" + escapeRegex(golink) + "(?:/([^/]*))?",
+        regexFilter: "^https?://go/" + escapeRegex(golink) + "(?:/(.*))?$",
         resourceTypes: ["main_frame"],
       },
     };
@@ -61,7 +61,7 @@ function get_rule(golink, destination) {
         redirect: { url: destination },
       },
       condition: {
-        urlFilter: `||go/${golink}|`,
+        regexFilter: "^https?://go/" + escapeRegex(golink) + "$",
         resourceTypes: ["main_frame"],
       },
     };

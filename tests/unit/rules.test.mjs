@@ -12,30 +12,76 @@ test("escapeRegex escapes every regex metacharacter", () => {
   assert.equal(get('escapeRegex("plain-name_1")'), "plain-name_1");
 });
 
-test("get_rule: a static link is a urlFilter redirect to the destination", () => {
+test("get_rule: a static link is an end-anchored regex redirect to the destination", () => {
   const rule = sb().get('get_rule("gh", "https://github.com")');
   assert.deepEqual(JSON.parse(JSON.stringify(rule)), {
     priority: 5,
     action: { type: "redirect", redirect: { url: "https://github.com" } },
-    condition: { urlFilter: "||go/gh|", resourceTypes: ["main_frame"] },
+    condition: { regexFilter: "^https?://go/gh$", resourceTypes: ["main_frame"] },
   });
 });
 
 test("get_rule: a %s link is a regex redirect substituting capture group 1", () => {
   const rule = sb().get('get_rule("cs", "https://github.com/search?q=%s")');
   assert.equal(rule.action.redirect.regexSubstitution, "https://github.com/search?q=\\1");
-  assert.equal(rule.condition.regexFilter, "^https?://go/cs(?:/([^/]*))?");
+  assert.equal(rule.condition.regexFilter, "^https?://go/cs(?:/(.*))?$");
   assert.equal(rule.condition.urlFilter, undefined);
 });
 
+const paramRe = (name) => new RegExp(sb().get(`get_rule(${JSON.stringify(name)}, "https://x/%s")`).condition.regexFilter);
+const staticRe = (name) => new RegExp(sb().get(`get_rule(${JSON.stringify(name)}, "https://x")`).condition.regexFilter);
+
+test("%s link: go/csx does not match the cs rule", () => {
+  const re = paramRe("cs");
+  assert.equal(re.test("https://go/csx"), false);
+  assert.equal(re.test("https://go/csx/query"), false);
+  assert.equal(re.test("https://go/cs-more/q"), false);
+});
+
+test("%s link: the parameter is everything after go/<name>/", () => {
+  const re = paramRe("cs");
+  assert.equal(re.exec("https://go/cs/a/b")[1], "a/b");
+  assert.equal(re.exec("http://go/cs/query")[1], "query");
+  assert.equal(re.exec("https://go/cs/")[1], "");
+});
+
+test("%s link: bare go/cs still matches, with an empty parameter", () => {
+  const m = paramRe("cs").exec("https://go/cs");
+  assert.ok(m);
+  assert.equal(m[1], undefined);
+});
+
+test("static link: matches only the exact name", () => {
+  const re = staticRe("gh");
+  assert.equal(re.test("https://go/gh"), true);
+  assert.equal(re.test("http://go/gh"), true);
+  assert.equal(re.test("https://go/ghx"), false);
+  assert.equal(re.test("https://go/gh/extra"), false);
+  assert.equal(re.test("https://go/g"), false);
+});
+
+test("static link: * ^ | in a name match literally, not as urlFilter wildcards", () => {
+  const star = staticRe("a*b");
+  assert.equal(star.test("https://go/a*b"), true);
+  assert.equal(star.test("https://go/axxb"), false);
+  const bar = staticRe("a|b");
+  assert.equal(bar.test("https://go/a|b"), true);
+  assert.equal(bar.test("https://go/a"), false);
+  assert.equal(bar.test("https://go/b"), false);
+  const caret = staticRe("a^b");
+  assert.equal(caret.test("https://go/a^b"), true);
+  assert.equal(caret.test("https://go/a/b"), false);
+});
+
 test("get_rule: the regexFilter matches the name literally and captures the argument", () => {
-  const { get } = sb();
-  const re = new RegExp(get('get_rule("a.b", "https://x/%s")').condition.regexFilter);
+  const re = paramRe("a.b");
   assert.equal(re.exec("https://go/a.b/query")[1], "query");
   assert.equal(re.test("https://go/axb/query"), false);
-  const plus = new RegExp(get('get_rule("c++", "https://x/%s")').condition.regexFilter);
+  const plus = paramRe("c++");
   assert.equal(plus.exec("http://go/c++/z")[1], "z");
   assert.equal(plus.test("https://go/cc/z"), false);
+  assert.equal(staticRe("a.b").test("https://go/axb"), false);
+  assert.equal(staticRe("c++").test("https://go/c++"), true);
 });
 
 test("updateRulesWithLinks: link rules, then help, root and not-found, ids 1..N", async () => {
@@ -55,7 +101,7 @@ test("updateRulesWithLinks removes the previous rules", async () => {
   await get('updateRulesWithLinks({ b: "https://b", c: "https://c" })');
   assert.deepEqual(fake.calls[1].removeRuleIds, [1, 2, 3, 4]);
   assert.equal(fake.rules().length, 5);
-  assert.equal(fake.rules()[0].condition.urlFilter, "||go/b|");
+  assert.equal(fake.rules()[0].condition.regexFilter, "^https?://go/b$");
 });
 
 test("getLinks: defaults, with localLinks overriding them; defaults are stored", async () => {
@@ -85,9 +131,9 @@ test("refreshRules: overlapping calls never interleave and end on the latest lin
   }
   await Promise.all(runs); // would reject with "Duplicate rule ID" without the queue
   assert.equal(maxActive, 1);
-  const names = fake.rules().map((r) => r.condition.urlFilter);
-  assert.ok(names.includes("||go/last|"));
-  assert.equal(fake.rules().find((r) => r.condition.urlFilter === "||go/last|").action.redirect.url, "https://v7");
+  const last = fake.rules().find((r) => r.condition.regexFilter === "^https?://go/last$");
+  assert.ok(last);
+  assert.equal(last.action.redirect.url, "https://v7");
 });
 
 test("refreshRules: a failed update does not block the next one", async () => {

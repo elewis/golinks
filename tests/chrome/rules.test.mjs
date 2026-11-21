@@ -67,5 +67,10 @@ describe("link names are matched literally", () => {
     assert.ok(isNotFound(url), `go/aXb/test -> ${url}`);
   });
 
+  test("go/csx does not match the cs rule", async () => {
+    const url = await finalUrl("https://go/csx/test", isNotFound);
+    assert.ok(isNotFound(url), `go/csx/test -> ${url}`);
+  });
+
   test("no errors were logged", () => assert.deepEqual(errors(), []));
 });

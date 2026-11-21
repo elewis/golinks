@@ -51,5 +51,11 @@ describe("link names are matched literally", () => {
     assert.ok(final.endsWith("/notfound.html"), `go/aXb/test -> ${final}`);
   });
 
+  test("go/csx does not match the cs rule", async () => {
+    await navigate("https://go/csx/test");
+    const final = await fx.ff.waitUrl((u) => u.startsWith("moz-extension://"));
+    assert.ok(final.endsWith("/notfound.html"), `go/csx/test -> ${final}`);
+  });
+
   test("no errors were logged", () => assert.deepEqual(errors(), []));
 });
