@@ -85,16 +85,20 @@ function initLinkForm(container: HTMLElement, prefill: { name?: string; url?: st
   existing.append(el("div", {}, "Existing go links for this URL:"), existingList);
   existing.hidden = true;
 
-  const nameLabel = el("label", {}, "Name go/");
-  nameLabel.append(nameInput);
-  const urlLabel = el("label", {}, "URL ");
-  urlLabel.append(urlInput);
-  const row = (...kids: HTMLElement[]) => {
-    const d = el("div");
-    d.append(...kids);
-    return d;
+  // One inline row, as go/help always had it: name, URL, button to the right.
+  // No visible labels; the inputs carry aria-labels. Messages go below the row.
+  nameInput.setAttribute("aria-label", "Link name");
+  urlInput.setAttribute("aria-label", "Link URL");
+  const cellOf = (kid: HTMLElement) => {
+    const td = el("td");
+    td.append(kid);
+    return td;
   };
-  form.append(row(nameLabel, nameError), row(urlLabel, urlError), existing, row(addBtn), status);
+  const tr = el("tr");
+  tr.append(cellOf(nameInput), cellOf(urlInput), cellOf(addBtn));
+  const inputRow = el("table");
+  inputRow.append(tr);
+  form.append(inputRow, nameError, urlError, existing, status);
   container.append(form);
 
   nameInput.value = prefill.name ?? "";
