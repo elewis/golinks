@@ -53,9 +53,9 @@
       deleteBtn.title = "Delete link";
 
       deleteBtn.addEventListener("click", async () => {
+        // Names are case-insensitive: remove every case variant.
         const current = await getLocalLinks();
-        delete current[golink];
-        await api.storage.sync.set({ localLinks: current });
+        await api.storage.sync.set({ localLinks: removeLinkName(current, golink) });
       });
 
       deleteCell.appendChild(deleteBtn);

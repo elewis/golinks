@@ -115,3 +115,31 @@ test("readLinks: before the defaults are stored it falls back to getLinks()", as
   assert.equal(links.github, "https://github.com");
   assert.ok(fake.store.sync.defaultLinks);
 });
+
+test("checkLink: the name is saved lowercase", () => {
+  assert.equal(check("Docs", "https://x.test").name, "docs");
+  assert.equal(check("go/DOCS", "https://x.test").name, "docs");
+});
+
+test("checkLink: a name taken in another case is an overwrite, naming the current destination", () => {
+  const r = check("GH", "https://other.test", { gh: "https://github.com" });
+  assert.deepEqual(r, { ok: true, name: "gh", url: "https://other.test", overwrites: "https://github.com" });
+  assert.equal(check("gh", "https://github.com", { gh: "https://github.com" }).overwrites, undefined);
+  assert.equal(check("GH", "https://github.com", { gh: "https://github.com" }).overwrites, undefined);
+});
+
+test("checkLink: HELP is reserved in any case", () => {
+  assert.ok(check("HELP", "https://x.test").errors.name);
+});
+
+test("saveLink: saves lowercase and removes every other case variant of the name", async () => {
+  const { fake, get } = sb();
+  fake.store.sync.localLinks = { GH: "https://a", Gh: "https://b", keep: "https://k" };
+  await get('saveLink("GH", "https://new")');
+  assert.deepEqual(plain(fake.store.sync.localLinks), { keep: "https://k", gh: "https://new" });
+});
+
+test("removeLinkName: removes every case variant of a name and nothing else", () => {
+  const out = plain(sb().get('removeLinkName({ GH: "1", gh: "2", Gha: "3" }, "gH")'));
+  assert.deepEqual(out, { Gha: "3" });
+});

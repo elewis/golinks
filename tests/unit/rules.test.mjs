@@ -17,7 +17,7 @@ test("get_rule: a static link is an end-anchored regex redirect to the destinati
   assert.deepEqual(JSON.parse(JSON.stringify(rule)), {
     priority: 5,
     action: { type: "redirect", redirect: { url: "https://github.com" } },
-    condition: { regexFilter: "^https?://go/gh$", resourceTypes: ["main_frame"] },
+    condition: { regexFilter: "^https?://go/gh$", isUrlFilterCaseSensitive: false, resourceTypes: ["main_frame"] },
   });
 });
 
@@ -130,6 +130,93 @@ test("getLinks: defaults, with localLinks overriding them; defaults are stored",
   assert.equal(links.extra, "https://e");
   assert.equal(links.github, "https://github.com");
   assert.ok(fake.store.sync.defaultLinks.cs);
+});
+
+const countSets = (fake) => {
+  const sets = [];
+  const set = fake.api.storage.sync.set;
+  fake.api.storage.sync.set = (v) => (sets.push(v), set(v));
+  return sets;
+};
+
+test("getLinks: stored defaults with keys in another order (Chrome sorts them) are not rewritten", async () => {
+  const { fake, get } = sb();
+  await get("getLinks()");
+  const sorted = Object.fromEntries(Object.entries(fake.store.sync.defaultLinks).sort(([a], [b]) => a.localeCompare(b)));
+  assert.notDeepEqual(Object.keys(sorted), Object.keys(fake.store.sync.defaultLinks));
+  fake.store.sync.defaultLinks = sorted;
+  const sets = countSets(fake);
+  await get("getLinks()");
+  assert.deepEqual(sets, []);
+});
+
+test("getLinks: stored defaults that really differ are rewritten", async () => {
+  const { fake, get } = sb();
+  await get("getLinks()");
+  fake.store.sync.defaultLinks.gh = "https://old.test";
+  const sets = countSets(fake);
+  await get("getLinks()");
+  assert.equal(sets.length, 1);
+  assert.equal(sets[0].defaultLinks.gh, "https://github.com");
+  fake.store.sync.defaultLinks.extra = "https://x.test"; // an extra key is a difference too
+  await get("getLinks()");
+  assert.equal(sets.length, 2);
+});
+
+test("get_rule: the case-insensitive match is explicit, for static and %s rules", () => {
+  const { get } = sb();
+  assert.equal(get('get_rule("gh", "https://github.com")').condition.isUrlFilterCaseSensitive, false);
+  assert.equal(get('get_rule("cs", "https://x/%s")').condition.isUrlFilterCaseSensitive, false);
+});
+
+test("get_rule: the name is matched lowercased", () => {
+  assert.equal(sb().get('get_rule("GH", "https://github.com")').condition.regexFilter, "^https?://go/gh$");
+});
+
+test("get_rule: a %s parameter keeps its case (the substitution does not touch it)", () => {
+  const rule = sb().get('get_rule("CS", "https://x/?q=%s")');
+  const m = new RegExp(rule.condition.regexFilter, "i").exec("https://go/cs/FooBar");
+  assert.equal("https://go/cs/FooBar".replace(new RegExp(rule.condition.regexFilter, "i"), rule.action.redirect.regexSubstitution.replace("\\1", "$1")), "https://x/?q=FooBar");
+  assert.equal(m[1], "FooBar");
+});
+
+test("mergeLinks: keys are lowercased, local over default", () => {
+  const { get } = sb();
+  const out = JSON.parse(JSON.stringify(get('mergeLinks({ gh: "https://d", Cs: "https://c" }, { GH: "https://mine" })')));
+  assert.deepEqual(out, { gh: "https://mine", cs: "https://c" });
+});
+
+test("mergeLinks: of two stored local keys that differ only in case the exact lowercase one wins, else the last", () => {
+  const { get } = sb();
+  const m = (locals) => JSON.parse(JSON.stringify(get(`mergeLinks({}, ${JSON.stringify(locals)})`)));
+  assert.deepEqual(m({ gh: "https://lower", GH: "https://upper" }), { gh: "https://lower" });
+  assert.deepEqual(m({ GH: "https://upper", gh: "https://lower" }), { gh: "https://lower" });
+  assert.deepEqual(m({ Gh: "https://one", GH: "https://two" }), { gh: "https://two" });
+});
+
+test("getLinks and readLinks: a stored GH overrides the default gh, once, and storage is not rewritten", async () => {
+  const { fake, get } = sb();
+  await get("getLinks()");
+  fake.store.sync.localLinks = { GH: "https://mine" };
+  const sets = countSets(fake);
+  for (const expr of ["getLinks()", "readLinks()"]) {
+    const links = JSON.parse(JSON.stringify(await get(expr)));
+    assert.equal(links.gh, "https://mine");
+    assert.equal("GH" in links, false);
+  }
+  assert.deepEqual(sets, []);
+  assert.deepEqual(fake.store.sync.localLinks, { GH: "https://mine" });
+});
+
+test("refreshRules: one rule per lowercased name, so no two rules match the same URL", async () => {
+  const { fake, get } = sb();
+  fake.store.sync.localLinks = { GH: "https://mine", Docs: "https://d", docs: "https://d2" };
+  await get("refreshRules()");
+  const filters = fake.rules().map((r) => r.condition.regexFilter).filter((f) => f?.startsWith("^https?://go/") && !f.includes("[^/"));
+  assert.equal(new Set(filters).size, filters.length);
+  assert.equal(filters.filter((f) => f === "^https?://go/gh$").length, 1);
+  assert.equal(filters.filter((f) => f === "^https?://go/docs$").length, 1);
+  assert.equal(fake.rules().find((r) => r.condition.regexFilter === "^https?://go/gh$").action.redirect.url, "https://mine");
 });
 
 test("refreshRules: overlapping calls never interleave and end on the latest links", async () => {

@@ -4,9 +4,10 @@
 
 const RESERVED_NAMES = ["help"];
 
-// What the user typed, as a link name: trimmed, without a leading "go/".
+// What the user typed, as a link name: trimmed, without a leading "go/",
+// lowercase (names are case-insensitive).
 function normalizeLinkName(raw: string): string {
-  return raw.trim().replace(/^go\//, "");
+  return raw.trim().replace(/^go\//i, "").toLowerCase();
 }
 
 // A URL for comparing: trimmed, without one trailing "/".
@@ -44,7 +45,9 @@ function checkLink(rawName: string, rawUrl: string, links: Links): LinkCheck {
   if (!url) errors.url = "Enter a URL.";
   else if (!isFullUrl(url)) errors.url = "Enter a full URL starting with http:// or https://";
   if (errors.name || errors.url) return { ok: false, errors };
-  const current = Object.hasOwn(links, name) ? links[name] : undefined;
+  // Any case variant of the name counts as taken; the exact key first.
+  const key = Object.hasOwn(links, name) ? name : Object.keys(links).find((k) => k.toLowerCase() === name);
+  const current = key === undefined ? undefined : links[key];
   if (current !== undefined && current !== url) return { ok: true, name, url, overwrites: current };
   return { ok: true, name, url };
 }
@@ -56,10 +59,10 @@ function linksForUrl(links: Links, url: string): string[] {
   return Object.keys(links).filter((name) => comparableUrl(links[name]!) === wanted);
 }
 
-// Writes one link into the user's links, exactly as the help page always has.
+// Writes one link into the user's links, lowercase, replacing any case variant.
 async function saveLink(name: string, url: string): Promise<void> {
   const { localLinks }: { localLinks?: Links } = await api.storage.sync.get("localLinks");
-  await api.storage.sync.set({ localLinks: { ...(localLinks || {}), [name]: url } });
+  await api.storage.sync.set({ localLinks: { ...removeLinkName(localLinks || {}, name), [name.toLowerCase()]: url } });
 }
 
 // Builds the form inside `container`. The caller passes what to prefill; the

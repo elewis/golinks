@@ -41,7 +41,10 @@ function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function get_rule(golink: string, destination: string): RuleBody {
+function get_rule(name: string, destination: string): RuleBody {
+  // Link names are case-insensitive: lowercase, and say so explicitly (both
+  // browsers default to a case-insensitive match; the parameter keeps its case).
+  const golink = name.toLowerCase();
   if (destination.includes("%s")) {
     return {
       priority: 5,
@@ -53,6 +56,7 @@ function get_rule(golink: string, destination: string): RuleBody {
       },
       condition: {
         regexFilter: "^https?://go/" + escapeRegex(golink) + "(?:/(.*))?$",
+        isUrlFilterCaseSensitive: false,
         resourceTypes: ["main_frame"],
       },
     };
@@ -65,6 +69,7 @@ function get_rule(golink: string, destination: string): RuleBody {
       },
       condition: {
         regexFilter: "^https?://go/" + escapeRegex(golink) + "$",
+        isUrlFilterCaseSensitive: false,
         resourceTypes: ["main_frame"],
       },
     };
@@ -73,7 +78,8 @@ function get_rule(golink: string, destination: string): RuleBody {
 
 async function updateRulesWithLinks(links: Links): Promise<void> {
   console.debug("GoLinks: updating rules with links:", links);
-  const new_rules = Object.entries(links).map(([golink, destination]) =>
+  // One rule per lowercased name, so no two rules match the same URL.
+  const new_rules = Object.entries(mergeLinks({}, links)).map(([golink, destination]) =>
     get_rule(golink, destination)
   );
   console.debug("GoLinks: generated rules:", new_rules);
