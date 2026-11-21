@@ -170,6 +170,17 @@ async function run(cmd) {
     const seed = await (await fetch("seed.json")).json();
     await browser.storage.sync.set({ localLinks: seed.localLinks });
     for (const name of Object.keys(seed.localLinks)) await waitFor(() => hasRule(name), `rule for ${name}`);
+    if (seed.hits) {
+      // Wait for the background to record the edits, then add the sample hits to them.
+      const get = async () => (await browser.storage.local.get("linkMetrics")).linkMetrics;
+      await waitFor(async () => (await get())?.[Object.keys(seed.localLinks).pop()]?.lastEdit, "edits");
+      const metrics = (await get()) ?? {};
+      const now = Math.floor(Date.now() / 1000);
+      for (const [name, [count, ago]] of Object.entries(seed.hits)) {
+        metrics[name] = { recent: [], hourly: [], daily: [], ...metrics[name], count, lastHit: now - ago };
+      }
+      await browser.storage.local.set({ linkMetrics: metrics });
+    }
     return {};
   }
   if (cmd.op === "frame") {
@@ -224,6 +235,33 @@ async function run(cmd) {
     );
     const { interceptions } = await browser.storage.local.get("interceptions");
     return { entries: interceptions || [] };
+  }
+  if (cmd.op === "metrics") {
+    const { linkMetrics } = await browser.storage.local.get("linkMetrics");
+    return { metrics: linkMetrics || {} };
+  }
+  if (cmd.op === "metricsedit") {
+    // Edits through storage.sync, as the form (or another device) does.
+    await browser.storage.sync.set({ localLinks: { zzedit: "https://example.com/one" } });
+    await waitFor(async () => (await browser.storage.local.get("linkMetrics")).linkMetrics?.zzedit?.lastEdit, "edit");
+    const first = (await browser.storage.local.get("linkMetrics")).linkMetrics.zzedit.lastEdit;
+    // The same destination again is no edit; a deletion is none either.
+    await browser.storage.sync.set({ localLinks: { zzedit: "https://example.com/one" } });
+    await browser.storage.sync.set({ localLinks: {} });
+    await sleep(500);
+    const { linkMetrics } = await browser.storage.local.get("linkMetrics");
+    return { first, stat: linkMetrics.zzedit };
+  }
+  if (cmd.op === "metricshelp") {
+    const doc = await loadForm();
+    const rows = () =>
+      Object.fromEntries(
+        [...doc.querySelectorAll("#user-links tr, #default-links tr")].map((r) => [
+          r.firstChild.textContent,
+          [...r.querySelectorAll("td")].map((c) => c.textContent),
+        ]),
+      );
+    return { rows: rows() };
   }
   throw new Error(`unknown op ${cmd.op}`);
 }

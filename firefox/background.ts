@@ -4,6 +4,8 @@
 // and recording in search.js; this file adds the host-permission warning and
 // the webRequest interception of address-bar searches for protocol-less go/ URLs.
 
+startMetrics();
+
 (async () => {
   // Check if we have the necessary permissions
   const hasPermissions = await api.permissions.contains({

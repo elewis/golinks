@@ -9,7 +9,7 @@
     }
   },
   "background": {
-    "scripts": ["api.js", "links.js", "rules.js", "search.js", "background.js"]
+    "scripts": ["api.js", "links.js", "rules.js", "redirects.js", "metrics.js", "search.js", "background.js"]
   },
   "action": {
     "default_title": "Add go link",

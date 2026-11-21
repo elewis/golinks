@@ -3,12 +3,21 @@ import assert from "node:assert/strict";
 import { COMMON, load } from "./lib/sandbox.mjs";
 
 // The Firefox background script in the order its manifest lists the scripts.
-const sb = () => load([...COMMON, "firefox/search.ts", "firefox/background.ts"]);
+const sb = () =>
+  load([...COMMON, "common/redirects.ts", "common/metrics.ts", "firefox/search.ts", "firefox/background.ts"]);
 
 test("manifest lists the scripts in the order the sandbox loads them", async () => {
   const { readFile } = await import("node:fs/promises");
   const m = JSON.parse(await readFile(new URL("../../firefox/manifest.json", import.meta.url), "utf8"));
-  assert.deepEqual(m.background.scripts, ["api.js", "links.js", "rules.js", "search.js", "background.js"]);
+  assert.deepEqual(m.background.scripts, [
+    "api.js",
+    "links.js",
+    "rules.js",
+    "redirects.js",
+    "metrics.js",
+    "search.js",
+    "background.js",
+  ]);
 });
 
 test("the blocking listener watches main_frame on all URLs", () => {

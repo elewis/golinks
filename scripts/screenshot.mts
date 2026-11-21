@@ -34,6 +34,8 @@ const SEED_LINKS = {
   wiki: "https://docs.example.com",
   board: "https://team.example.com/board",
 };
+// Hits to show on go/help: name -> [total count, seconds ago of the last hit].
+const SEED_HITS: Record<string, [number, number]> = { docs: [42, 3600], github: [7, 86400 * 3], cs: [1, 45] };
 // What the popup would be prefilled with: the active tab's URL.
 const SAMPLE_TAB_URL = "https://docs.example.com";
 
@@ -111,7 +113,7 @@ async function shootFirefox(shots: Shot[]): Promise<void> {
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const serverPort = (server.address() as { port: number }).port;
     try {
-      writeFileSync(path.join(dir, "seed.json"), JSON.stringify({ localLinks: SEED_LINKS }));
+      writeFileSync(path.join(dir, "seed.json"), JSON.stringify({ localLinks: SEED_LINKS, hits: SEED_HITS }));
       await run("seed");
       for (const shot of shots) {
         writeFileSync(path.join(dir, "shot.json"), JSON.stringify(shot));
@@ -159,6 +161,18 @@ async function shootChrome(shots: Shot[]): Promise<void> {
     };
     await open("index.html");
     await ev(`chrome.storage.sync.set({ localLinks: ${JSON.stringify(SEED_LINKS)} })`);
+    // Wait for the background to record the edits, then add the sample hits to them.
+    await ev(`(async () => {
+      const get = async () => (await chrome.storage.local.get("linkMetrics")).linkMetrics;
+      for (let i = 0; i < 100 && !(await get())?.board?.lastEdit; i++) await new Promise((r) => setTimeout(r, 50));
+      const metrics = (await get()) ?? {};
+      const now = Math.floor(Date.now() / 1000);
+      for (const [name, [count, ago]] of Object.entries(${JSON.stringify(SEED_HITS)})) {
+        metrics[name] = { recent: [], hourly: [], daily: [], ...metrics[name], count, lastHit: now - ago };
+      }
+      await chrome.storage.local.set({ linkMetrics: metrics });
+      return true;
+    })()`);
     for (const shot of shots) {
       await chrome.setViewport(page, DESKTOP.width, DESKTOP.height);
       await open(shot.src);

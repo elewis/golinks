@@ -21,7 +21,7 @@ export function fakeApi() {
     },
   });
   let rules = [];
-  const listeners = { storageChanged: [], webRequest: [] };
+  const listeners = { storageChanged: [], webRequest: [], redirect: [] };
   const api = {
     storage: {
       sync: area("sync"),
@@ -41,7 +41,10 @@ export function fakeApi() {
         rules = [...kept, ...structuredClone(addRules)];
       },
     },
-    webRequest: { onBeforeRequest: { addListener: (...args) => listeners.webRequest.push(args) } },
+    webRequest: {
+      onBeforeRequest: { addListener: (...args) => listeners.webRequest.push(args) },
+      onBeforeRedirect: { addListener: (...args) => listeners.redirect.push(args) },
+    },
     runtime: { getURL: (p) => `chrome-extension://fake-id/${p}` },
     permissions: { contains: async () => true },
   };

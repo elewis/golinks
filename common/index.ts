@@ -6,6 +6,10 @@
 
   const defaultLinks = result.defaultLinks || {};
   const localLinks = result.localLinks || {};
+  // Usage metrics of this device (storage.local, see metrics.ts), by lowercase name.
+  const stored: { linkMetrics?: LinkMetrics } = await api.storage.local.get("linkMetrics");
+  let metrics: LinkMetrics = stored.linkMetrics || {};
+  let shownLocal = localLinks;
 
   async function getLocalLinks(): Promise<Links> {
     const { localLinks }: { localLinks?: Links } = await api.storage.sync.get("localLinks");
@@ -23,29 +27,53 @@
     const cell = document.createElement("td");
     const cellText = document.createTextNode(text);
     cell.appendChild(cellText);
+    cell.style.paddingRight = "1em";
     return cell;
+  }
+
+  function headerRow(withDelete: boolean): HTMLTableRowElement {
+    const row = document.createElement("tr");
+    for (const text of ["Link", "Destination", "Hits", "Last hit", "Last edited", ...(withDelete ? [""] : [])]) {
+      const th = document.createElement("th");
+      th.textContent = text;
+      th.style.textAlign = "left";
+      th.style.paddingRight = "1em";
+      row.appendChild(th);
+    }
+    return row;
+  }
+
+  // The usage cells of a link: hits, last hit, last edited.
+  function statCells(golink: string): HTMLTableCellElement[] {
+    const stat = metrics[golink.toLowerCase()];
+    return [cell(formatHits(stat)), cell(formatLastHit(stat)), cell(formatLastEdit(stat))];
   }
 
   function populateTable(tableId: string, links: Links): void {
     const table = byId(tableId);
     table.innerHTML = "";
+    table.appendChild(headerRow(false));
 
     Object.entries(links).forEach(([golink, destination]) => {
       const row = document.createElement("tr");
       row.appendChild(cell(`go/${golink}`));
       row.appendChild(cell(destination));
+      for (const c of statCells(golink)) row.appendChild(c);
       table.appendChild(row);
     });
   }
 
   function populateUserLinks(links: Links): void {
+    shownLocal = links;
     const table = byId("user-links");
     table.innerHTML = "";
+    table.appendChild(headerRow(true));
 
     Object.entries(links).forEach(([golink, destination]) => {
       const row = document.createElement("tr");
       row.appendChild(cell(`go/${golink}`));
       row.appendChild(cell(destination));
+      for (const c of statCells(golink)) row.appendChild(c);
 
       const deleteCell = document.createElement("td");
       const deleteBtn = document.createElement("button");
@@ -72,6 +100,14 @@
   api.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === "sync" && changes.localLinks)
       populateUserLinks((changes.localLinks.newValue as Links | undefined) || {});
+  });
+
+  // Hits and edits are recorded by the background; show them as they come.
+  api.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace !== "local" || !changes.linkMetrics) return;
+    metrics = (changes.linkMetrics.newValue as LinkMetrics | undefined) || {};
+    populateUserLinks(shownLocal);
+    populateTable("default-links", defaultLinks);
   });
 
   populateUserLinks(localLinks);
