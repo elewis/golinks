@@ -2,9 +2,8 @@
 // context with a fake `browser`, the way a browser would run them: one shared
 // global scope, no modules. No browser, no network.
 import vm from "node:vm";
-import { readFileSync } from "node:fs";
 import path from "node:path";
-import { REPO } from "../../../scripts/build.mjs";
+import { REPO, emittedSource } from "../../../scripts/build.mts";
 
 /** An in-memory stand-in for the parts of the WebExtension API the scripts use. */
 export function fakeApi() {
@@ -58,8 +57,8 @@ export function load(files, fake = fakeApi()) {
     URL,
     structuredClone,
   });
-  for (const f of files) vm.runInContext(readFileSync(path.join(REPO, f), "utf8"), ctx, { filename: f });
+  for (const f of files) vm.runInContext(emittedSource(path.join(REPO, f)), ctx, { filename: f });
   return { fake, ctx, logs, get: (expr) => vm.runInContext(expr, ctx) };
 }
 
-export const COMMON = ["common/api.js", "common/links.js", "common/rules.js"];
+export const COMMON = ["common/api.ts", "common/links.ts", "common/rules.ts"];

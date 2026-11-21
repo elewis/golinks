@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "types": ["firefox-webext-browser"] },
+  "include": ["types/firefox.d.ts", "common/**/*.ts", "firefox/**/*.ts"]
+}

@@ -8,30 +8,34 @@ Browser extensions that provide in-browser go/ links (e.g., `go/github`) that re
 ### Directory Structure
 ```
 golinks/
-├── common/          # files both browsers run, byte for byte
-├── chrome/          # Chrome-only: manifest.json, background.js
-├── firefox/         # Firefox-only: manifest.json, background.js
-├── scripts/build.mjs  # copies common/ + <browser>/ into dist/<browser>/
+├── common/          # TypeScript (.ts) and other files both browsers run; the same source for both
+├── chrome/          # Chrome-only: manifest.json, background.ts
+├── firefox/         # Firefox-only: manifest.json, background.ts, search.ts
+├── types/           # .d.ts globals for the type check (Api, Rule, per browser); never built
+├── scripts/         # build.mts (emits dist/<browser>/), load-firefox.mts, lib/*.mts; run by Node's type stripping
+├── tsconfig.*.json  # strict type check: base, firefox (common+firefox), chrome (common+chrome), scripts
 └── dist/            # git-ignored build output: load this, zip this for the stores
 ```
-Build with `pnpm build` (both), `pnpm build:firefox` or `pnpm build:chrome`. The build is a plain copy (Node built-ins only). A file name present in both `common/` and a browser folder is an error, so nothing is overridden silently. Edit `common/`, `chrome/` and `firefox/`, never `dist/`.
+Build with `pnpm build` (both), `pnpm build:firefox` or `pnpm build:chrome`. There is no compiler: the build emits each `.ts` as `.js` with `node:module` `stripTypeScriptTypes` (types are blanked out with spaces, so line and column numbers match the source) and copies every other file byte for byte (Node built-ins only). Only erasable syntax is allowed (`erasableSyntaxOnly`: no enums, namespaces or parameter properties); the build fails on anything else. A file name present in both `common/` and a browser folder is an error, counting the emitted name (`common/x.ts` clashes with `firefox/x.js`), so nothing is overridden silently. Manifests, `importScripts()` and the HTML keep naming the `.js` files.
+
+The extension files are classic scripts that share globals: no `import`/`export`, no bundler. For the same reason a new top-level name in one file is visible to every other file in the type check. Edit `common/`, `chrome/` and `firefox/`, never `dist/`.
 
 ### Key Files
-- `common/api.js` - namespace shim, loaded first everywhere: `const api = globalThis.browser ?? globalThis.chrome;`. All shared code calls `api.*` (Promise-based MV3 calls, valid in both browsers).
-- `common/links.js` - link storage/retrieval from browser sync storage (`getLinks()`, default links)
-- `common/rules.js` - rule generation (`get_rule()`, `escapeRegex()`), the serialised `refreshRules()` queue, `startRules()`, and the storage change listener
-- `common/index.html`, `common/index.js` - help page for `go/help` and bare `go/`, with the add/delete link form
+- `common/api.ts` - namespace shim, loaded first everywhere: `const api: Api = globalThis.browser ?? globalThis.chrome!;` (`Api` comes from `types/`, per browser). All shared code calls `api.*` (Promise-based MV3 calls, valid in both browsers).
+- `common/links.ts` - link storage/retrieval from browser sync storage (`getLinks()`, default links)
+- `common/rules.ts` - rule generation (`get_rule()`, `escapeRegex()`), the serialised `refreshRules()` queue, `startRules()`, and the storage change listener
+- `common/index.html`, `common/index.ts` - help page for `go/help` and bare `go/`, with the add/delete link form
 - `common/notfound.html` - 404 page for unmatched go/ links
-- `firefox/search.js` - Firefox-only pure logic: `goUrlFromSearch()`, `recordInterception()`, `MAX_INTERCEPTIONS`
+- `firefox/search.ts` - Firefox-only pure logic: `goUrlFromSearch()`, `recordInterception()`, `MAX_INTERCEPTIONS`
 - `chrome/manifest.json`, `firefox/manifest.json` - Manifest v3, `declarativeNetRequestWithHostAccess` and `storage` permissions (Firefox adds `webRequest`)
-- `chrome/background.js` - service worker: `importScripts("api.js", "links.js", "rules.js")`, then `startRules()`
-- `firefox/background.js` - event page (manifest `scripts` lists `api.js`, `links.js`, `rules.js`, `search.js`, `background.js`): host-permission warning, `startRules()`, webRequest interception and interception recording
+- `chrome/background.ts` - service worker: `importScripts("api.js", "links.js", "rules.js")`, then `startRules()`
+- `firefox/background.ts` - event page (manifest `scripts` lists the built `api.js`, `links.js`, `rules.js`, `search.js`, `background.js`): host-permission warning, `startRules()`, webRequest interception and interception recording
 
 ### How It Works
 1. **Initialization**: Background script loads links from browser storage, creates redirect rules
 2. **Storage Integration**: Uses browser sync storage for configurable links that sync across devices  
 3. **Dynamic Updates**: Storage change listener automatically updates rules when links are modified
-4. **Rule Generation**: Single `get_rule()` function (in `common/rules.js`) handles both parameterized (`%s`) and static redirects
+4. **Rule Generation**: Single `get_rule()` function (in `common/rules.ts`) handles both parameterized (`%s`) and static redirects
 5. **Protocol Handling**: Firefox uses webRequest to catch bare `go/` URLs from address bar searches
 
 ### Link Types
@@ -41,22 +45,22 @@ Build with `pnpm build` (both), `pnpm build:firefox` or `pnpm build:chrome`. The
 ## Browser-Specific Implementation
 
 ### Chrome Version (`chrome/`)
-- Shared code uses `api.*` (resolves to `chrome.*`); `chrome/background.js` is only the worker entry point
+- Shared code uses `api.*` (resolves to `chrome.*`); `chrome/background.ts` is only the worker entry point
 - Service worker background script with `importScripts()`
 - Requires `https://go/github` format in address bar
 
 ### Firefox Version (`firefox/`)
-- Shared code uses `api.*` (the shim in `common/api.js`); `firefox/background.js` does too (no polyfill needed)
+- Shared code uses `api.*` (the shim in `common/api.ts`); `firefox/background.ts` does too (no polyfill needed)
 - Event page background script with manifest `scripts` array
 - Includes a `webRequest` listener to catch bare `go/github` from address bar searches. Firefox turns that text into a search on the default engine, and an extension cannot change that (no API sets `browser.fixup.*`, experiments are off on Release), so the listener is the mechanism. It watches main_frame requests on every host (`<all_urls>`, `*://*/*` in `host_permissions`), so regional and custom engines work. It redirects to `https://go/...` only when the query parameter (`q`, `p`, `query` or `text`) starts with `go/` followed by a link name, and only when the request has no `details.originUrl`. An address-bar navigation has none; a link click or form submit from a page does, so those are left alone. Pages with an opaque origin (`data:`) report no originUrl and would still be redirected.
-- Every interception is recorded in `browser.storage.local` (per device, not sync) under `interceptions`: an array, newest last, capped at the last 100 (`MAX_INTERCEPTIONS`). Entry: `{ at: ISO timestamp, from: the original search URL, to: the https://go/... URL, tabId }`. `recordInterception(details, redirectUrl)` in `search.js` writes it, serialised on a promise chain and not awaited by the listener. Recording only; no UI yet. Needs no extra permission.
+- Every interception is recorded in `browser.storage.local` (per device, not sync) under `interceptions`: an array, newest last, capped at the last 100 (`MAX_INTERCEPTIONS`). Entry: `{ at: ISO timestamp, from: the original search URL, to: the https://go/... URL, tabId }`. `recordInterception(details, redirectUrl)` in `search.ts` writes it, serialised on a promise chain and not awaited by the listener. Recording only; no UI yet. Needs no extra permission.
 - Hybrid approach: webRequest for protocol-less URLs, declarativeNetRequest for actual redirects
 
 ## Chrome/Firefox Parity
 Shared code lives once, in `common/`, so it cannot drift. There is no diff-based check any more.
 
-- **Shared**: `api.js`, `links.js`, `rules.js`, `index.js`, `index.html`, `notfound.html`. Use `api.*`, never `browser.*` or `chrome.*`, in `common/`.
-- **Allowed divergence**: only the two `background.js` files, the two `manifest.json` files and Firefox's `search.js` (its address-bar search logic), and only for browser-specific needs: the service worker with `importScripts()` vs the event page with a manifest `scripts` array, Firefox's `webRequest` interception of protocol-less `go/` URLs and its recording, and browser-specific manifest keys. Anything both browsers do (rule generation, storage handling) goes in `common/`, not in a background file.
+- **Shared**: `api.ts`, `links.ts`, `rules.ts`, `index.ts`, `index.html`, `notfound.html`. Use `api.*`, never `browser.*` or `chrome.*`, in `common/`.
+- **Allowed divergence**: only the two `background.ts` files, the two `manifest.json` files and Firefox's `search.ts` (its address-bar search logic), and only for browser-specific needs: the service worker with `importScripts()` vs the event page with a manifest `scripts` array, Firefox's `webRequest` interception of protocol-less `go/` URLs and its recording, and browser-specific manifest keys. Anything both browsers do (rule generation, storage handling) goes in `common/`, not in a background file.
 - **Bug fixes**: a fix in `common/` fixes both. A fix in a browser folder: check whether the other browser has the same problem and fix both in the same change, or file a follow-up todo and say so in the commit body.
 - **New behavior**: features land in both extensions together. A feature limited to one browser lives in that browser's folder, and the commit body and this file say why.
 - **New file**: a name must not exist in both `common/` and a browser folder (the build fails).
@@ -72,7 +76,8 @@ Shared code lives once, in `common/`, so it cannot drift. There is no diff-based
 ## Development Notes
 - **Chrome**: Uses service workers with `importScripts()` 
 - **Firefox**: Uses event pages with manifest `scripts` array
-- **No dependencies**: Direct browser API usage, no polyfill libraries
+- **No runtime dependencies; dev dependencies are type-check tools only**: Direct browser API usage, no polyfill libraries. The devDependencies are only for type checking: `typescript`, `@types/chrome`, `@types/firefox-webext-browser`, `@types/node` (all pinned). Other devDependencies are fine to add; any runtime dependency (shipped in the extension) needs asking first.
+- **Types**: `pnpm typecheck` runs `tsc --noEmit` (strict) three times: `tsconfig.firefox.json` (`common/` + `firefox/` + `types/firefox.d.ts`, browser types from `@types/firefox-webext-browser`), `tsconfig.chrome.json` (`common/` + `chrome/` + `types/chrome.d.ts`, `@types/chrome`) and `tsconfig.scripts.json` (`scripts/**/*.mts`, `@types/node`). `common/` is checked against both browsers: `Api` is `typeof browser` in one and `typeof chrome` in the other, so shared code may only use what both type sets agree on. Tests stay plain JavaScript (`.mjs`) and are not type checked.
 - Rules are dynamically managed via `declarativeNetRequest` 
 - Storage changes trigger automatic rule updates without restart
 - Extensions initialize with default links if storage is empty
@@ -81,16 +86,19 @@ Shared code lives once, in `common/`, so it cannot drift. There is no diff-based
 ## Testing
 
 ### Test workflow
-Red/green with `pnpm test` only: it is fast (under a second, no browser, no network), so run it after every change. Run `pnpm test:full` once at the end, before a handback, commit or merge. Do not iterate on the browser suites.
+Setup: run `pnpm install` once in a fresh checkout. It installs the dev-only type-check tools that `pnpm test` (via `pnpm typecheck`) needs; `pnpm build` itself uses only Node built-ins. Nothing ships in the extension.
+
+Red/green with `pnpm test` only: it is fast (about a second, typecheck included, no browser, no network), so run it after every change. Run `pnpm test:full` once at the end, before a handback, commit or merge. Do not iterate on the browser suites.
 
 ```
-pnpm test        # build tests + extension unit tests + loader unit tests
+pnpm test        # typecheck + build tests + extension unit tests + loader unit tests
+pnpm typecheck   # tsc --noEmit, strict, for firefox, chrome and scripts (about 0.5 s)
 pnpm test:full   # pnpm test, then test:firefox, test:chrome, test:loader:integration
 ```
 `pnpm test:unit` runs only the extension unit tests and `pnpm test:loader` only the loader unit tests (rdp framing, profiles, prefs). `pnpm test:loader:integration` runs the loader's headless-Firefox test.
 
 ### Unit tests
-`tests/unit/*.test.mjs` run the shipped classic scripts (`common/*.js`, `firefox/search.js`, `firefox/background.js`) unchanged in a `node:vm` context with a fake `browser` (in-memory `storage.sync`/`storage.local`, `declarativeNetRequest` that rejects duplicate rule ids, recorded listeners), see `tests/unit/lib/sandbox.mjs`. Top-level `const`/`let` are not properties of the context, so tests read them with `get("expr")`. Covers regex escaping, `%s` vs static rules (end anchors, `go/csx` vs `cs`, parameter `a/b`, `*`/`|` literal in static names), rule ids and the help/root/not-found rules, default and local links, the serialised `refreshRules()` queue (no interleaving, a failure does not block), the storage listener, `goUrlFromSearch` (any host, `q`/`p`/`query`/`text`, non-matches), the interception record shape and cap, and the Firefox listener (no `originUrl` only). A new script that a background loads must be added to the load list in the test.
+`tests/unit/*.test.mjs` run the shipped classic scripts (`common/*.ts`, `firefox/search.ts`, `firefox/background.ts`) as the build emits them (`emittedSource()` in `scripts/build.mts`: the same stripping, not a second path) in a `node:vm` context with a fake `browser` (in-memory `storage.sync`/`storage.local`, `declarativeNetRequest` that rejects duplicate rule ids, recorded listeners), see `tests/unit/lib/sandbox.mjs`. Top-level `const`/`let` are not properties of the context, so tests read them with `get("expr")`. Covers regex escaping, `%s` vs static rules (end anchors, `go/csx` vs `cs`, parameter `a/b`, `*`/`|` literal in static names), rule ids and the help/root/not-found rules, default and local links, the serialised `refreshRules()` queue (no interleaving, a failure does not block), the storage listener, `goUrlFromSearch` (any host, `q`/`p`/`query`/`text`, non-matches), the interception record shape and cap, and the Firefox listener (no `originUrl` only). A new script that a background loads must be added to the load list in the test.
 
 ### Chrome
 Run `pnpm build:chrome`, then load `dist/chrome` as an unpacked extension. Navigate to `https://go/github`, `https://go/cs/test`, or `https://go/help`. Check service worker console at `chrome://extensions/`.
@@ -102,7 +110,7 @@ Run `pnpm build:firefox`, then load `dist/firefox` (or `pnpm load:firefox`, whic
 ```
 pnpm test:build
 ```
-Fast (no browser; `pnpm test` runs it too): the build output holds `common/` and the browser folder byte for byte, a name clash is an error, every script a manifest, worker or page loads exists in the build, and `pnpm load:firefox` rebuilds `dist/firefox`. 
+Fast (no browser; `pnpm test` runs it too): the build output holds every `.ts` as its stripped `.js` and every other file of `common/` and the browser folder byte for byte, a name clash (also `x.ts` vs `x.js`) is an error, non-erasable syntax is an error, every script a manifest, worker or page loads exists in the build, and `pnpm load:firefox` rebuilds `dist/firefox`. 
 
 ### Firefox automated tests
 ```

@@ -1,23 +1,30 @@
 (async () => {
-  const result = await api.storage.sync.get(["defaultLinks", "localLinks"]);
+  const result: { defaultLinks?: Links; localLinks?: Links } = await api.storage.sync.get(["defaultLinks", "localLinks"]);
 
   const defaultLinks = result.defaultLinks || {};
   const localLinks = result.localLinks || {};
 
-  async function getLocalLinks() {
-    const { localLinks } = await api.storage.sync.get("localLinks");
+  async function getLocalLinks(): Promise<Links> {
+    const { localLinks }: { localLinks?: Links } = await api.storage.sync.get("localLinks");
     return { ...(localLinks || {}) };
   }
 
-  function cell(text) {
+  // An element the page is known to have (see index.html).
+  function byId<T extends HTMLElement = HTMLElement>(id: string): T {
+    const el = document.getElementById(id);
+    if (!el) throw new Error(`index.html has no #${id}`);
+    return el as T;
+  }
+
+  function cell(text: string): HTMLTableCellElement {
     const cell = document.createElement("td");
     const cellText = document.createTextNode(text);
     cell.appendChild(cellText);
     return cell;
   }
 
-  function populateTable(tableId, links) {
-    const table = document.getElementById(tableId);
+  function populateTable(tableId: string, links: Links): void {
+    const table = byId(tableId);
     table.innerHTML = "";
 
     Object.entries(links).forEach(([golink, destination]) => {
@@ -28,8 +35,8 @@
     });
   }
 
-  function populateUserLinksWithForm(links) {
-    const table = document.getElementById("user-links");
+  function populateUserLinksWithForm(links: Links): void {
+    const table = byId("user-links");
     table.innerHTML = "";
 
     Object.entries(links).forEach(([golink, destination]) => {
@@ -81,24 +88,21 @@
 
   // Registered once: the form element survives re-renders (only its table is
   // rebuilt), and the links are read from storage at submit time.
-  document
-    .getElementById("add-link-form")
-    .addEventListener("submit", async (e) => {
-      e.preventDefault();
+  byId("add-link-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-      const linkName = document
-        .getElementById("link-name")
-        .value.trim()
-        .replace(/^go\//, "");
-      const linkUrl = document.getElementById("link-url").value.trim();
+    const linkName = byId<HTMLInputElement>("link-name")
+      .value.trim()
+      .replace(/^go\//, "");
+    const linkUrl = byId<HTMLInputElement>("link-url").value.trim();
 
-      if (linkName && linkUrl) {
-        const current = await getLocalLinks();
-        current[linkName] = linkUrl;
-        await api.storage.sync.set({ localLinks: current });
-        populateUserLinksWithForm(current);
-      }
-    });
+    if (linkName && linkUrl) {
+      const current = await getLocalLinks();
+      current[linkName] = linkUrl;
+      await api.storage.sync.set({ localLinks: current });
+      populateUserLinksWithForm(current);
+    }
+  });
 
   populateUserLinksWithForm(localLinks);
   populateTable("default-links", defaultLinks);

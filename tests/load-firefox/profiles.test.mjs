@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync, symlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { findProfile, parseProfilesIni, runningPid } from "../../scripts/lib/profiles.mjs";
+import { findProfile, parseProfilesIni, runningPid } from "../../scripts/lib/profiles.mts";
 
 const SNAP = ".mozilla/firefox";
 function home(ini, { snap = true } = {}) {

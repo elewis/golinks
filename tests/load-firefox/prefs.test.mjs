@@ -3,7 +3,7 @@ import { appendFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } 
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { REQUIRED_PREFS, applyPrefs, conflictingPrefs, existingPrefs, missingPrefs, movePrefsScript, removePrefs } from "../../scripts/lib/prefs.mjs";
+import { REQUIRED_PREFS, applyPrefs, conflictingPrefs, existingPrefs, missingPrefs, movePrefsScript, removePrefs } from "../../scripts/lib/prefs.mts";
 
 const dir = () => mkdtempSync(path.join(os.tmpdir(), "golinks-prof-"));
 

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { COMMON, load } from "./lib/sandbox.mjs";
 
-const sb = () => load([...COMMON, "firefox/search.js"]);
+const sb = () => load([...COMMON, "firefox/search.ts"]);
 const parse = (url) => sb().get(`goUrlFromSearch(${JSON.stringify(url)})`);
 
 test("goUrlFromSearch: q, p, query and text on any host", () => {

@@ -1,11 +1,11 @@
 // Builds the throwaway copy of the Chrome extension (common/ + chrome/, via
-// scripts/build.mjs) that the tests install. Neither folder is modified.
+// scripts/build.mts) that the tests install. Neither folder is modified.
 import { mkdirSync, rmSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyMutation } from "../../lib/mutate.mjs";
-import { build } from "../../../scripts/build.mjs";
+import { build } from "../../../scripts/build.mts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "../../..");

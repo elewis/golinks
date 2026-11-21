@@ -8,9 +8,9 @@
 // read an empty rule list and then both add ids 1..N, failing with "Duplicate
 // rule ID". Each queued task reads the links and the existing rules afresh, so
 // the last task always leaves the rules matching the latest storage.
-let rulesQueue = Promise.resolve();
+let rulesQueue: Promise<unknown> = Promise.resolve();
 
-function refreshRules() {
+function refreshRules(): Promise<void> {
   const task = rulesQueue.then(async () => {
     const links = await getLinks();
     await updateRulesWithLinks(links);
@@ -21,7 +21,7 @@ function refreshRules() {
 }
 
 // Rebuild the rules now, and again whenever the links change in storage.
-async function startRules() {
+async function startRules(): Promise<void> {
   await refreshRules();
   console.debug("GoLinks: extension loaded");
 }
@@ -33,12 +33,15 @@ api.storage.onChanged.addListener((changes, namespace) => {
   }
 });
 
+// A redirect rule without its id (assigned when the rules are installed).
+type RuleBody = Omit<Rule, "id">;
+
 // Match a link name literally inside a regular expression.
-function escapeRegex(text) {
+function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function get_rule(golink, destination) {
+function get_rule(golink: string, destination: string): RuleBody {
   if (destination.includes("%s")) {
     return {
       priority: 5,
@@ -68,7 +71,7 @@ function get_rule(golink, destination) {
   }
 }
 
-async function updateRulesWithLinks(links) {
+async function updateRulesWithLinks(links: Links): Promise<void> {
   console.debug("GoLinks: updating rules with links:", links);
   const new_rules = Object.entries(links).map(([golink, destination]) =>
     get_rule(golink, destination)

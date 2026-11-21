@@ -6,11 +6,11 @@
 // the text in a query parameter (e.g. https://www.google.com/search?q=go%2Fsomething).
 // Any host is watched, so regional and custom engines work. A request is only
 // redirected when a query parameter starts with "go/" followed by a link name.
-const SEARCH_PARAMS = ["q", "p", "query", "text"];
+const SEARCH_PARAMS: readonly string[] = ["q", "p", "query", "text"];
 
 // Returns the https://go/... URL a search request stands for, or null.
-function goUrlFromSearch(url) {
-  let u;
+function goUrlFromSearch(url: string): string | null {
+  let u: URL;
   try {
     u = new URL(url);
   } catch {
@@ -36,10 +36,12 @@ function goUrlFromSearch(url) {
 // URL, tabId }. Writes are serialised on one promise chain so a burst loses
 // nothing; the caller does not wait for them.
 const MAX_INTERCEPTIONS = 100;
-let interceptionsQueue = Promise.resolve();
+let interceptionsQueue: Promise<unknown> = Promise.resolve();
 
-function recordInterception(details, redirectUrl) {
-  const entry = {
+type Interception = { at: string; from: string; to: string; tabId: number };
+
+function recordInterception(details: { url: string; tabId: number }, redirectUrl: string): Promise<unknown> {
+  const entry: Interception = {
     at: new Date().toISOString(),
     from: details.url,
     to: redirectUrl,
@@ -47,7 +49,7 @@ function recordInterception(details, redirectUrl) {
   };
   interceptionsQueue = interceptionsQueue
     .then(async () => {
-      const { interceptions = [] } = await api.storage.local.get("interceptions");
+      const { interceptions = [] }: { interceptions?: Interception[] } = await api.storage.local.get("interceptions");
       interceptions.push(entry);
       await api.storage.local.set({ interceptions: interceptions.slice(-MAX_INTERCEPTIONS) });
     })

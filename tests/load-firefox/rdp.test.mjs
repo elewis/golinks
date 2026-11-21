@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import net from "node:net";
 import { test } from "node:test";
-import { CLOSE_SERVER_SCRIPT, PacketParser, RdpClient, encodePacket } from "../../scripts/lib/rdp.mjs";
+import { CLOSE_SERVER_SCRIPT, PacketParser, RdpClient, encodePacket } from "../../scripts/lib/rdp.mts";
 
 test("encodePacket prefixes the byte length, not the character count", () => {
   assert.equal(encodePacket({ a: "é" }).toString(), '10:{"a":"é"}');

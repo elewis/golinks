@@ -1,8 +1,11 @@
-async function getLinks() {
-  // Get both defaultLinks and localLinks from storage
-  const result = await api.storage.sync.get(["defaultLinks", "localLinks"]);
+// Link name (without "go/") to destination URL; a destination with %s takes a parameter.
+type Links = Record<string, string>;
 
-  const defaultLinks = {
+async function getLinks(): Promise<Links> {
+  // Get both defaultLinks and localLinks from storage
+  const result: { defaultLinks?: Links; localLinks?: Links } = await api.storage.sync.get(["defaultLinks", "localLinks"]);
+
+  const defaultLinks: Links = {
     github: "https://github.com",
     gh: "https://github.com",
     cs: "https://github.com/search?q=%s", // cs = code search

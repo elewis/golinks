@@ -12,10 +12,10 @@ import readline from "node:readline/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { build } from "./build.mjs";
-import { applyPrefs, conflictingPrefs, existingPrefs, missingPrefs, movePrefsScript, removePrefs } from "./lib/prefs.mjs";
-import { acceptsForwardedCommands, findProfile, runningPid } from "./lib/profiles.mjs";
-import { RdpClient } from "./lib/rdp.mjs";
+import { build } from "./build.mts";
+import { applyPrefs, conflictingPrefs, existingPrefs, missingPrefs, movePrefsScript, removePrefs } from "./lib/prefs.mts";
+import { acceptsForwardedCommands, findProfile, runningPid } from "./lib/profiles.mts";
+import { RdpClient } from "./lib/rdp.mts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_PORT = 6005;
@@ -37,8 +37,23 @@ Without --set-prefs / --restart the script asks on the terminal; with no termina
 
 class UserError extends Error {}
 
-export async function run({ argv, env = process.env, stdin = process.stdin, stdout = process.stdout, stderr = process.stderr }) {
-  const say = (s = "") => stdout.write(`${s}\n`);
+export interface RunOptions {
+  argv: string[];
+  env?: NodeJS.ProcessEnv;
+  stdin?: NodeJS.ReadStream;
+  stdout?: NodeJS.WritableStream;
+  stderr?: NodeJS.WritableStream;
+}
+
+interface LaunchOptions {
+  binary: string | undefined;
+  profileDir: string;
+  port: number;
+  headless: boolean | undefined;
+}
+
+export async function run({ argv, env = process.env, stdin = process.stdin, stdout = process.stdout, stderr = process.stderr }: RunOptions): Promise<number> {
+  const say = (s = ""): void => void stdout.write(`${s}\n`);
   let args;
   try {
     ({ values: args } = parseArgs({
@@ -55,7 +70,7 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
       },
     }));
   } catch (e) {
-    stderr.write(`${e.message}\n\n${HELP}\n`);
+    stderr.write(`${(e as Error).message}\n\n${HELP}\n`);
     return 2;
   }
   if (args.help) {
@@ -64,7 +79,7 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
   }
 
   /** Ask y/N on the terminal; `flag` answers yes in advance. No terminal means no. */
-  async function consent(flag, question) {
+  async function consent(flag: boolean | undefined, question: string): Promise<boolean> {
     if (flag) return true;
     if (!stdin.isTTY) return false;
     const rl = readline.createInterface({ input: stdin, output: stdout });
@@ -86,7 +101,7 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
     const profile = findProfile({ home: os.homedir(), override: args.profile ?? env.GOLINKS_FF_PROFILE });
 
     // 1. Firefox already has the debugger server open: install, then close it.
-    let client = await tryConnect(port);
+    let client: RdpClient | null = await tryConnect(port);
     if (!client) {
       const pid = runningPid(profile.dir);
       say(`Profile: ${profile.dir}`);
@@ -139,7 +154,7 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
         if (written.length > 0) say(`Temporarily added to ${userJs}:`);
         for (const l of written) say(`  ${l}`);
         const undo = () => removePrefs(profile.dir, written, created);
-        const onSignal = (sig) => (undo(), process.kill(process.pid, sig));
+        const onSignal = (sig: NodeJS.Signals) => (undo(), process.kill(process.pid, sig));
         process.once("SIGINT", onSignal);
         process.once("SIGTERM", onSignal);
         try {
@@ -148,7 +163,7 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
           if (prefs.length > 0) await client.evaluateChrome(movePrefsScript(prefs));
         } catch (e) {
           // Never leave the server open behind a failure.
-          if (client) await client.closeServer().catch(() => client.close());
+          if (client) await client.closeServer().catch(() => client!.close());
           throw e;
         } finally {
           undo();
@@ -159,10 +174,10 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
       }
     }
 
-    let failure;
+    let failure: unknown;
     try {
-      const addon = await client.installTemporaryAddon(addonDir);
-      const listed = (await client.listAddons()).find((a) => a.id === (addon?.id ?? addonId));
+      const addon = await client!.installTemporaryAddon(addonDir);
+      const listed = (await client!.listAddons()).find((a) => a.id === (addon?.id ?? addonId));
       if (!listed?.temporary) throw new UserError(`Firefox accepted the install but does not list ${addonId} as a temporary add-on.`);
       say(`Loaded ${listed.name} (${listed.id}) from ${addonDir}`);
     } catch (e) {
@@ -170,35 +185,35 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
     }
     // Always close the server, even after a failed install, so Firefox is never left remote controlled.
     try {
-      await closeServer(client, port, say);
+      await closeServer(client!, port, say);
     } catch (e) {
       if (!failure) throw e;
-      stderr.write(`${e.message}\n`);
+      stderr.write(`${(e as Error).message}\n`);
     }
     if (failure) throw failure;
     return 0;
   } catch (e) {
-    stderr.write(`${e instanceof UserError ? "" : "Unexpected error: "}${e.message}\n`);
+    stderr.write(`${e instanceof UserError ? "" : "Unexpected error: "}${(e as Error).message}\n`);
     return 1;
   }
 
   /** Connected client, or null when nothing listens. Something else on the port is an error. */
-  async function tryConnect(p) {
+  async function tryConnect(p: number): Promise<RdpClient | null> {
     try {
       return await RdpClient.connect(p);
     } catch (e) {
-      if (e.code === "ECONNREFUSED") return null;
-      throw new UserError(`Port ${p} is in use by something that is not Firefox's debugger server (${e.message}). Pick another with --port.`);
+      if ((e as NodeJS.ErrnoException).code === "ECONNREFUSED") return null;
+      throw new UserError(`Port ${p} is in use by something that is not Firefox's debugger server (${(e as Error).message}). Pick another with --port.`);
     }
   }
 
   /** Close Firefox's debugger server so it is not remote controlled; say so loudly if that fails. */
-  async function closeServer(client, p, say) {
+  async function closeServer(client: RdpClient, p: number, say: (s?: string) => void): Promise<void> {
     try {
       await client.closeServer();
     } catch (e) {
       client.close();
-      throw new UserError(`Could not close the debugger server on port ${p} (${e.message}). Firefox stays remote controlled until you restart it.`);
+      throw new UserError(`Could not close the debugger server on port ${p} (${(e as Error).message}). Firefox stays remote controlled until you restart it.`);
     }
     for (let i = 0; i < 25; i++) {
       const again = await tryConnect(p);
@@ -219,12 +234,12 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
    * seconds of polling after the exit is all the wait needed. The child gets its own process group so
    * a straggler (the snap wrapper) can be killed whole.
    */
-  async function reopen({ binary, profileDir, port: p, headless }) {
+  async function reopen({ binary, profileDir, port: p, headless }: LaunchOptions): Promise<RdpClient | null> {
     const exe = binary ?? (existsSync("/snap/bin/firefox") ? "/snap/bin/firefox" : "firefox");
     const flags = ["--profile", profileDir, "--start-debugger-server", String(p)];
     if (headless) flags.unshift("--headless");
     const child = spawn(exe, flags, { detached: true, stdio: "ignore" });
-    let exited = null; // time of exit
+    let exited: number | null = null; // time of exit
     child.once("exit", () => (exited = Date.now()));
     child.once("error", () => (exited = Date.now()));
     const start = Date.now();
@@ -238,13 +253,13 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
     } finally {
       if (exited === null) {
         try {
-          process.kill(-child.pid);
+          process.kill(-child.pid!);
         } catch {}
       }
     }
   }
 
-  async function quit(pid, profileDir) {
+  async function quit(pid: number, profileDir: string): Promise<void> {
     say(`Quitting Firefox (pid ${pid}) with SIGTERM, which is a normal shutdown...`);
     process.kill(pid, "SIGTERM");
     for (let i = 0; i < 300; i++) {
@@ -254,7 +269,7 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
     throw new UserError(`Firefox (pid ${pid}) did not quit within 60 s; not forcing it. Close it yourself and re-run.`);
   }
 
-  async function launch({ binary, profileDir, port: p, headless }) {
+  async function launch({ binary, profileDir, port: p, headless }: LaunchOptions): Promise<RdpClient> {
     const exe = binary ?? (existsSync("/snap/bin/firefox") ? "/snap/bin/firefox" : "firefox");
     // A normal window keeps Firefox's remoting, so a later run can ask it to reopen the server and
     // links from other programs still reach it. Headless (the tests) must stay out of any other instance.
@@ -262,7 +277,7 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
     if (headless) flags.unshift("--headless", "--no-remote");
     say(`Launching ${exe} with the debugger server on 127.0.0.1:${p}...`);
     const child = spawn(exe, flags, { detached: true, stdio: "ignore" });
-    let exitCode;
+    let exitCode: number | string | undefined;
     child.once("exit", (c) => (exitCode = c ?? -1));
     child.once("error", (e) => (exitCode = e.message));
     child.unref();
@@ -279,7 +294,7 @@ export async function run({ argv, env = process.env, stdin = process.stdin, stdo
   }
 }
 
-function warnAboutSessionRestore(profileDir, say) {
+function warnAboutSessionRestore(profileDir: string, say: (s?: string) => void): void {
   let startupPage = 1;
   try {
     startupPage = Number(/user_pref\("browser\.startup\.page",\s*(\d+)\)/.exec(readFileSync(path.join(profileDir, "prefs.js"), "utf8"))?.[1] ?? 1);

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { COMMON, load } from "./lib/sandbox.mjs";
 
 // The Firefox background script in the order its manifest lists the scripts.
-const sb = () => load([...COMMON, "firefox/search.js", "firefox/background.js"]);
+const sb = () => load([...COMMON, "firefox/search.ts", "firefox/background.ts"]);
 
 test("manifest lists the scripts in the order the sandbox loads them", async () => {
   const { readFile } = await import("node:fs/promises");

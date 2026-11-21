@@ -18,13 +18,13 @@ GoLinks allows you to create short redirect links that work in your browser's ad
 ## Installation
 
 ### Chrome
-1. Clone this repository and run `pnpm build:chrome`
+1. Clone this repository, run `pnpm install` (optional for building; installs the dev-only type-check tools, nothing ships in the extension) and `pnpm build:chrome`
 2. Open `chrome://extensions/` in Chrome
 3. Enable "Developer mode"
 4. Click "Load unpacked" and select the `dist/chrome` folder
 
 ### Firefox
-1. Clone this repository and run `pnpm build:firefox`
+1. Clone this repository, run `pnpm install` (optional for building; installs the dev-only type-check tools, nothing ships in the extension) and `pnpm build:firefox`
 2. Open `about:debugging` in Firefox
 3. Click "This Firefox"
 4. Click "Load Temporary Add-on"
@@ -97,9 +97,9 @@ Use `%s` in URLs to create parameterized links that accept arguments.
 
 ```
 golinks/
-├── common/          # code shared by both browsers
+├── common/          # TypeScript shared by both browsers
 ├── chrome/          # Chrome-only manifest and background
 ├── firefox/         # Firefox-only manifest and background
-├── scripts/build.mjs  # copies common/ + <browser>/ into dist/<browser>/
+├── scripts/build.mts  # emits dist/<browser>/ from common/ + <browser>/ (TypeScript, types stripped)
 └── CLAUDE.md        # Detailed technical documentation
 ```

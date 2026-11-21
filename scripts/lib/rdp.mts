@@ -2,7 +2,21 @@
 // about:debugging use), on node:net only. A packet is `<byte length>:<json>`.
 import net from "node:net";
 
-export function encodePacket(obj) {
+/** A decoded packet. Firefox's protocol is open-ended, so the fields are loose. */
+export interface Packet {
+  from?: string;
+  error?: string;
+  message?: string;
+  [key: string]: any;
+}
+
+interface Waiting {
+  from: string;
+  resolve: (packet: Packet) => void;
+  reject: (error: Error) => void;
+}
+
+export function encodePacket(obj: unknown): Buffer {
   const json = Buffer.from(JSON.stringify(obj), "utf8");
   return Buffer.concat([Buffer.from(`${json.length}:`), json]);
 }
@@ -11,11 +25,11 @@ const NOT_RDP = "not the Firefox debugger protocol";
 
 /** Splits a byte stream into packets; keeps any partial packet for the next push. */
 export class PacketParser {
-  #buf = Buffer.alloc(0);
+  #buf: Buffer = Buffer.alloc(0);
 
-  push(chunk) {
+  push(chunk: Buffer): Packet[] {
     this.#buf = Buffer.concat([this.#buf, chunk]);
-    const packets = [];
+    const packets: Packet[] = [];
     for (;;) {
       const colon = this.#buf.indexOf(":");
       const head = this.#buf.subarray(0, colon === -1 ? Math.min(this.#buf.length, 12) : colon).toString("latin1");
@@ -38,19 +52,19 @@ export class PacketParser {
 }
 
 export class RdpClient {
-  #sock;
+  #sock: net.Socket;
   #parser = new PacketParser();
-  #waiting = null; // { from, resolve, reject }
-  #inbox = [];
-  #error = null;
+  #waiting: Waiting | null = null;
+  #inbox: Packet[] = [];
+  #error: Error | null = null;
 
-  constructor(sock) {
+  constructor(sock: net.Socket) {
     this.#sock = sock;
-    sock.on("data", (d) => {
+    sock.on("data", (d: Buffer) => {
       try {
         for (const p of this.#parser.push(d)) this.#deliver(p);
       } catch (e) {
-        this.#fail(e);
+        this.#fail(e as Error);
       }
     });
     sock.on("error", (e) => this.#fail(e));
@@ -58,10 +72,10 @@ export class RdpClient {
   }
 
   /** Connect and wait for the root actor's greeting. */
-  static async connect(port, { host = "127.0.0.1", timeout = 5000 } = {}) {
+  static async connect(port: number, { host = "127.0.0.1", timeout = 5000 }: { host?: string; timeout?: number } = {}): Promise<RdpClient> {
     const sock = net.connect({ port, host });
-    await new Promise((resolve, reject) => {
-      sock.once("connect", resolve);
+    await new Promise<void>((resolve, reject) => {
+      sock.once("connect", () => resolve());
       sock.once("error", reject);
     });
     const client = new RdpClient(sock);
@@ -75,7 +89,7 @@ export class RdpClient {
     return client;
   }
 
-  #deliver(packet) {
+  #deliver(packet: Packet): void {
     if (this.#waiting && packet.from === this.#waiting.from) {
       const { resolve, reject } = this.#waiting;
       this.#waiting = null;
@@ -86,7 +100,7 @@ export class RdpClient {
     }
   }
 
-  #fail(e) {
+  #fail(e: Error): void {
     this.#error ??= e;
     if (this.#waiting) {
       const { reject } = this.#waiting;
@@ -95,11 +109,11 @@ export class RdpClient {
     }
   }
 
-  #next(from, timeout, timeoutMessage) {
+  #next(from: string, timeout: number, timeoutMessage?: string): Promise<Packet> {
     const queued = this.#inbox.findIndex((p) => p.from === from);
     if (queued !== -1) return Promise.resolve(this.#inbox.splice(queued, 1)[0]);
     if (this.#error) return Promise.reject(this.#error);
-    return new Promise((resolve, reject) => {
+    return new Promise<Packet>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.#waiting = null;
         reject(new Error(timeoutMessage ?? `Firefox did not answer within ${timeout} ms`));
@@ -112,14 +126,14 @@ export class RdpClient {
     });
   }
 
-  async request(to, type, params = {}, timeout = 30_000) {
+  async request(to: string, type: string, params: Record<string, unknown> = {}, timeout = 30_000): Promise<Packet> {
     if (this.#error) throw this.#error;
     this.#sock.write(encodePacket({ to, type, ...params }));
     return this.#next(to, timeout);
   }
 
   /** Install (or, for an id already installed, replace and reload) a temporary add-on. */
-  async installTemporaryAddon(addonPath) {
+  async installTemporaryAddon(addonPath: string): Promise<Packet> {
     const { addonsActor } = await this.request("root", "getRoot");
     if (!addonsActor) throw new Error("Firefox did not offer an add-ons actor");
     const reply = await this.request(addonsActor, "installTemporaryAddon", { addonPath, openDevTools: false });
@@ -127,20 +141,20 @@ export class RdpClient {
   }
 
   /** Ids of every add-on Firefox lists, with whether it is temporary. */
-  async listAddons() {
+  async listAddons(): Promise<{ id: string; name: string; temporary: boolean }[]> {
     const { addons } = await this.request("root", "listAddons");
-    return addons.map((a) => ({ id: a.id, name: a.name, temporary: a.temporarilyInstalled === true }));
+    return addons.map((a: Packet) => ({ id: a.id, name: a.name, temporary: a.temporarilyInstalled === true }));
   }
 
   /** Run JavaScript with chrome privileges in Firefox's parent process; resolves to the result's grip. */
-  async evaluateChrome(text, timeout = 30_000) {
+  async evaluateChrome(text: string, timeout = 30_000): Promise<Packet> {
     const { processDescriptor } = await this.request("root", "getProcess", { id: 0 });
     const { process } = await this.request(processDescriptor.actor, "getTarget");
     const consoleActor = process.consoleActor;
     await this.request(consoleActor, "evaluateJSAsync", { text });
     const reply = await this.#next(consoleActor, timeout);
     if (reply.exception) {
-      const error = new Error(`Firefox could not run the script: ${reply.exceptionMessage ?? JSON.stringify(reply.exception.preview ?? reply.exception)}`);
+      const error: Error & { scriptError?: boolean } = new Error(`Firefox could not run the script: ${reply.exceptionMessage ?? JSON.stringify(reply.exception.preview ?? reply.exception)}`);
       error.scriptError = true;
       throw error;
     }
@@ -153,20 +167,20 @@ export class RdpClient {
    * every connection with it, this one included, so this resolves once that
    * has happened. A temporary add-on installed through the server stays.
    */
-  async closeServer(timeout = 10_000) {
-    const dropped = new Promise((resolve) => this.#sock.once("close", resolve));
+  async closeServer(timeout = 10_000): Promise<void> {
+    const dropped = new Promise<void>((resolve) => this.#sock.once("close", resolve));
     try {
       await this.evaluateChrome(CLOSE_SERVER_SCRIPT);
     } catch (e) {
       // The script ran and was refused: report it. Any other failure is Firefox
       // dropping the connection as the close takes effect, which is the success
       // case; the caller checks the port is really refused.
-      if (e.scriptError) {
-        throw new Error(`${e.message} (the close relies on Firefox internals: DistinctSystemPrincipalLoader.sys.mjs and the devtools-startup-clh component, checked on Firefox 157)`);
+      if ((e as { scriptError?: boolean }).scriptError) {
+        throw new Error(`${(e as Error).message} (the close relies on Firefox internals: DistinctSystemPrincipalLoader.sys.mjs and the devtools-startup-clh component, checked on Firefox 157)`);
       }
     }
-    let timer;
-    const expired = new Promise((_, reject) => {
+    let timer: NodeJS.Timeout | undefined;
+    const expired = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new Error("Firefox did not close its debugger server")), timeout);
     });
     try {
@@ -176,7 +190,7 @@ export class RdpClient {
     }
   }
 
-  close() {
+  close(): void {
     this.#sock.destroy();
   }
 }
