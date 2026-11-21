@@ -145,8 +145,11 @@ test("nothing about the debugger prefs persists in the profile after Firefox qui
   const names = ["devtools.debugger.remote-enabled", "devtools.debugger.prompt-connection", "devtools.chrome.enabled"];
   const files = () => ["user.js", "prefs.js"].map((f) => (existsSync(path.join(PROFILE, f)) ? readFileSync(path.join(PROFILE, f), "utf8") : ""));
   assert.ok(runningPid(PROFILE), "Firefox from the previous test should still be running");
-  const [userJs] = files();
+  // Right after the loader returns, with no waiting: Firefox's startup save put the prefs into prefs.js,
+  // and the loader must have saved them out again itself (a debounced save would not be done yet).
+  const [userJs, running] = files();
   for (const n of names) assert.ok(!userJs.includes(n), `user.js must not keep ${n} while Firefox runs`);
+  for (const n of names) assert.ok(!running.includes(n), `prefs.js must not hold ${n} once the loader has returned`);
   await stopFirefox();
   for (const [i, text] of files().entries()) {
     for (const n of names) assert.ok(!text.includes(n), `${["user.js", "prefs.js"][i]} must not contain ${n} after Firefox quit`);

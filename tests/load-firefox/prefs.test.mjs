@@ -94,3 +94,9 @@ test("movePrefsScript moves each value from the user branch to the default branc
   assert.match(script, /getDefaultBranch\(""\)\.setBoolPref/);
   for (const p of REQUIRED_PREFS) assert.ok(script.includes(JSON.stringify(p.name)));
 });
+
+test("movePrefsScript saves prefs.js itself and waits for it, so a quit right after cannot leave the old values", () => {
+  const script = movePrefsScript(REQUIRED_PREFS);
+  assert.match(script, /await Services\.prefs\.savePrefFile\(null\)/);
+  assert.ok(script.indexOf("savePrefFile") > script.indexOf("setBoolPref"), "save only after every pref has moved");
+});

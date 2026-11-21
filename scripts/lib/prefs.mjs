@@ -73,13 +73,19 @@ export function removePrefs(profileDir, lines, created) {
  * saves to prefs.js) to the default branch (which it never saves). The values
  * stay in force for this session, so the debugger server can be reopened,
  * and are gone when Firefox quits.
+ *
+ * Firefox's own startup save already wrote the user.js values into prefs.js,
+ * and the save that would remove them again is debounced (about 500 ms) and
+ * skipped when Firefox is stopped with SIGTERM in that time. So the script
+ * saves prefs.js itself and waits for the write.
  */
 export function movePrefsScript(prefs) {
-  return `(function () {
+  return `(async function () {
   for (const [name, value] of ${JSON.stringify(prefs.map((p) => [p.name, p.value]))}) {
     if (Services.prefs.prefHasUserValue(name)) Services.prefs.clearUserPref(name);
     Services.prefs.getDefaultBranch("").setBoolPref(name, value);
   }
+  await Services.prefs.savePrefFile(null);
   return "moved";
 })()`;
 }
