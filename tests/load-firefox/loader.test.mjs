@@ -175,10 +175,13 @@ test("the browser window is not left in remote-control state", async () => {
   );
   open.unref();
   assert.ok(await waitForFirefox(), "Firefox should start");
-  removePrefs(PROFILE, prefLines, true); // read at startup; nothing needs to stay in the file
   let client;
   for (let i = 0; i < 100 && !client; i++)
     client = await RdpClient.connect(port).catch(() => sleep(200).then(() => null));
+  // Only now has Firefox surely read user.js: the profile lock appears before that, and removing the lines
+  // at the lock left the server unstarted in about 1 of 12 launches (what the loader does: it removes them
+  // after it has connected).
+  removePrefs(PROFILE, prefLines, true);
   assert.ok(client, "the debugger server should come up");
   // The window sets the cue once it has loaded; wait for that before logging.
   for (let i = 0; i < 100 && (await client.evaluateChrome(READ_CUE)) !== "true"; i++) await sleep(200);
@@ -212,6 +215,8 @@ test("a port held by something else is a clear error", async () => {
 });
 
 test("a running Firefox without the server is left alone unless --restart is given", async () => {
+  // The loader refuses to go on without the prefs; give the profile its own, not what an earlier test left in prefs.js.
+  applyPrefs(PROFILE, missingPrefs(PROFILE));
   const plain = spawn(FIREFOX, ["--headless", "--no-remote", "--profile", PROFILE], {
     detached: true,
     stdio: "ignore",
