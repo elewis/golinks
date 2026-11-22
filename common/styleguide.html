@@ -126,6 +126,30 @@
                 </section>
 
                 <section class="section">
+                    <h2 class="section-title">Danger zone and dialog</h2>
+                    <div class="guide-form">
+                        <div class="section danger-zone">
+                            <h3 class="section-title">Danger zone</h3>
+                            <div class="danger-row">
+                                <div class="danger-text">danger-row: text, and a button for a destructive action.</div>
+                                <button type="button" class="btn btn-danger">Reset to default</button>
+                            </div>
+                        </div>
+                        <div><button type="button" class="btn btn-secondary">Cancel</button> <span class="muted"><code>btn-secondary</code>: the dialog's cancel.</span></div>
+                        <dialog class="dialog guide-dialog" open>
+                            <form method="dialog" class="dialog-body">
+                                <h3 class="dialog-title">Clear metrics?</h3>
+                                <p class="dialog-text">A modal <code>dialog</code> (opened with showModal on go/help; the backdrop is <code>--color-backdrop</code>).</p>
+                                <div class="dialog-actions">
+                                    <button type="button" class="btn btn-secondary">Cancel</button>
+                                    <button type="button" class="btn btn-danger">Clear metrics</button>
+                                </div>
+                            </form>
+                        </dialog>
+                    </div>
+                </section>
+
+                <section class="section">
                     <h2 class="section-title">Messages and note</h2>
                     <div class="guide-form">
                         <div class="msg-error">msg-error: Enter a full http(s) URL.</div>

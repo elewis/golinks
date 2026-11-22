@@ -6,7 +6,7 @@
 // a UI change by eye: it is not a test. Needs the same programs as the browser
 // suites (see CLAUDE.md); hold the hive lease "browser-suites" while it runs.
 //
-// Pages: popup, not-found, help, help-sorted (go/help sorted by hits), overwrite (the popup after saving over a taken
+// Pages: popup, not-found, help, help-sorted (go/help sorted by hits), help-dialog (go/help with the reset confirmation open), overwrite (the popup after saving over a taken
 // name), help-empty / help-error / help-overwrite (go/help with no user links, a
 // validation error, the overwrite confirm), styleguide (the design system page, linked from no UI), or any extension page path with a query string, e.g. "notfound.html?name=x".
 import { createServer } from "node:http";
@@ -54,6 +54,8 @@ const NAMED: Record<string, Shot> = {
   popup: { label: "popup", src: "popup.html", fill: { "link-url": SAMPLE_TAB_URL }, popup: true },
   "not-found": { label: "not-found", src: "notfound.html?name=zzsample" },
   help: { label: "help", src: "index.html" },
+  // go/help with the "Reset to default" confirmation open.
+  "help-dialog": { label: "help-dialog", src: "index.html", click: "reset-btn" },
   "help-sorted": { label: "help-sorted", src: "index.html", sortBy: "Hits" },
   overwrite: {
     label: "overwrite",
@@ -259,7 +261,7 @@ async function shootChrome(shots: Shot[]): Promise<void> {
 const args = process.argv.slice(2);
 if (args.includes("--help") || args.includes("-h")) {
   console.log(
-    "usage: pnpm screenshot [firefox|chrome|both] [page ...]\npages: popup, not-found, help, help-sorted, overwrite, help-empty, help-error, help-overwrite, styleguide, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
+    "usage: pnpm screenshot [firefox|chrome|both] [page ...]\npages: popup, not-found, help, help-sorted, help-dialog, overwrite, help-empty, help-error, help-overwrite, styleguide, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
   );
   process.exit(0);
 }

@@ -178,3 +178,19 @@ function startRedirectLog(): void {
     if (entry) appendRedirectLog(entry);
   });
 }
+
+// Clearing per-device data: the storage.local keys to remove among the stored
+// ones. Always `linkMetrics` and every redirect log day; with `settings` (the
+// factory reset) also the page's `helpSort`. `deviceId` (identity) always stays.
+function metricsKeysToClear(stored: Record<string, unknown>, settings = false): string[] {
+  return Object.keys(stored).filter(
+    (key) => key === "linkMetrics" || key.startsWith(REDIRECT_LOG_PREFIX) || (settings && key === "helpSort"),
+  );
+}
+
+// One storage.local.remove, from a page. It does not wait for the background's
+// queues: a hit written while it runs can bring old data back (accepted edge).
+async function clearMetrics(settings = false): Promise<void> {
+  const keys = metricsKeysToClear(await api.storage.local.get(null), settings);
+  if (keys.length > 0) await api.storage.local.remove(keys);
+}

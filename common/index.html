@@ -7,6 +7,7 @@
     <script type="text/javascript" src="links.js"></script>
     <script type="text/javascript" src="linkform.js"></script>
     <script type="text/javascript" src="metrics.js"></script>
+    <script type="text/javascript" src="redirectlog.js"></script>
     <script type="text/javascript" src="linksort.js"></script>
     <title>GoLinks</title>
 </head>
@@ -30,9 +31,33 @@
                     <table class="data-table" id="links"></table>
                     <div id="add-link"></div>
                 </section>
+
+                <section class="section danger-zone">
+                    <h2 class="section-title">Danger zone</h2>
+                    <div class="danger-row">
+                        <div class="danger-text">Delete the hit counts and the redirect log of this device.</div>
+                        <button type="button" class="btn btn-danger" id="clear-btn">Clear metrics</button>
+                    </div>
+                    <div class="danger-row">
+                        <div class="danger-text">Factory reset: replace all links with the defaults and clear this device's metrics, redirect log and sort order.</div>
+                        <button type="button" class="btn btn-danger" id="reset-btn">Reset to default</button>
+                    </div>
+                    <div class="msg-status" id="danger-status" role="status"></div>
+                    <div class="msg-error" id="danger-error" role="alert"></div>
+                </section>
             </div>
         </div>
     </main>
+    <dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title">
+        <form method="dialog" class="dialog-body">
+            <h2 class="dialog-title" id="confirm-title">Are you sure?</h2>
+            <p class="dialog-text" id="confirm-text"></p>
+            <div class="dialog-actions">
+                <button type="submit" class="btn btn-secondary" value="cancel" id="confirm-cancel" autofocus>Cancel</button>
+                <button type="submit" class="btn btn-danger" value="confirm" id="confirm-ok"></button>
+            </div>
+        </form>
+    </dialog>
     <script type="text/javascript" src="index.js"></script>
 </body>
 </html>

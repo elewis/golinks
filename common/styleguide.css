@@ -63,3 +63,9 @@
   background: var(--color-surface);
   border: 1px solid var(--color-control);
 }
+
+/* The sample dialog sits in the flow instead of being centred in the window. */
+.guide-dialog {
+  position: static;
+  margin: 0;
+}

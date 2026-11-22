@@ -128,6 +128,73 @@
     }
   }
 
+  // The one confirmation dialog (index.html): resolves true only for the confirm button; Cancel, Escape and a click
+  // on the backdrop (the dialog element itself; its padding is on the inner form) resolve false.
+  const dialog = byId<HTMLDialogElement>("confirm-dialog");
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) dialog.close("cancel");
+  });
+  function confirmDialog(title: string, text: string, confirmLabel: string): Promise<boolean> {
+    byId("confirm-title").textContent = title;
+    byId("confirm-text").textContent = text;
+    byId("confirm-ok").textContent = confirmLabel;
+    dialog.returnValue = "";
+    return new Promise((resolve) => {
+      dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true });
+      dialog.showModal();
+    });
+  }
+
+  // A danger button: confirm first, then act; nothing happens on cancel.
+  function dangerButton(
+    buttonId: string,
+    confirm: { title: string; text: string; label: string },
+    act: () => Promise<void>,
+    done: string,
+  ): void {
+    byId(buttonId).addEventListener("click", async () => {
+      byId("danger-status").textContent = "";
+      byId("danger-error").textContent = "";
+      if (!(await confirmDialog(confirm.title, confirm.text, confirm.label))) return;
+      try {
+        await act();
+        byId("danger-status").textContent = done;
+      } catch (e) {
+        byId("danger-error").textContent = `Could not complete: ${e instanceof Error ? e.message : e}`;
+      }
+    });
+  }
+
+  dangerButton(
+    "reset-btn",
+    {
+      title: "Reset to default?",
+      text:
+        "This removes all your links and adds the default ones again, on every device that syncs them. On this " +
+        "device it also clears the hit counts, the redirect log and the table's sort order. It cannot be undone.",
+      label: "Reset everything",
+    },
+    async () => {
+      await resetLinks();
+      await clearMetrics(true);
+      sort = DEFAULT_SORT;
+      populateLinks(shownLinks);
+    },
+    "Reset to default.",
+  );
+  dangerButton(
+    "clear-btn",
+    {
+      title: "Clear metrics?",
+      text:
+        "This deletes the hit counts, last-hit times and the redirect log of this device only. " +
+        "It cannot be undone. Your links are not changed.",
+      label: "Clear metrics",
+    },
+    clearMetrics,
+    "Metrics cleared.",
+  );
+
   initLinkForm(byId("add-link"), {}, linksTable);
   // The shared form (and deletes from other pages) change the stored links.
   api.storage.onChanged.addListener((changes, namespace) => {

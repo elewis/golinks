@@ -13,6 +13,7 @@
 //   op=seed     (pnpm screenshot) store the links from seed.json
 //   op=frame    (pnpm screenshot) show the extension page named in shot.json
 //               in a full-window iframe, fill its fields, report its size
+//   op=danger   drive the danger zone of index.html (reset links, clear metrics; cancel and confirm)
 //   op=regex  store links whose names contain regex characters (a.b, c++)
 const LINK = { name: "zzmine", url: "https://example.com/mine" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -365,6 +366,76 @@ async function run(cmd) {
     const remembered = snap(doc2);
     await browser.storage.local.remove("helpSort");
     return { initial, hitsDesc, hitsAsc, stored, remembered };
+  }
+  if (cmd.op === "danger") {
+    // The danger zone of go/help: Cancel changes nothing, confirming does the clear / the factory reset.
+    const day = "redirectLog:2026-11-20";
+    const seedLocal = () =>
+      browser.storage.local.set({
+        linkMetrics: { zzmine: { count: 5, lastHit: 1, lastEdit: 1, recent: [], hourly: [], daily: [] } },
+        [day]: [{ at: 1, from: "a", link: "zzmine", to: "b", tabId: 1 }],
+        helpSort: { column: "hits", dir: "desc" },
+      });
+    await setLinks({ zzmine: "https://example.com/mine" });
+    await sleep(500);
+    await browser.storage.local.remove(["linkMetrics", "helpSort"]);
+    await seedLocal();
+    const doc = await loadForm();
+    const dialog = doc.getElementById("confirm-dialog");
+    const click = (id) => doc.getElementById(id).click();
+    const settle = () => waitFor(() => !dialog.open, "the dialog to close");
+    const local = () => browser.storage.local.get(null);
+    const keys = async () => Object.keys(await local()).sort();
+    const shipped = SHIPPED_LINKS; // links.js, loaded by test.html
+    const out = { shipped };
+    out.deviceIdBefore = (await local()).deviceId;
+    out.buttonOrder = [...doc.querySelectorAll(".danger-zone button")].map((b) => b.id);
+
+    // Clear metrics: cancel changes nothing, confirm removes metrics and log only.
+    click("clear-btn");
+    out.clearDialogOpen = dialog.open;
+    out.clearText = doc.getElementById("confirm-text").textContent;
+    click("confirm-cancel");
+    await settle();
+    await sleep(300);
+    out.keysAfterClearCancel = await keys();
+    click("clear-btn");
+    click("confirm-ok");
+    await settle();
+    await waitFor(async () => !("linkMetrics" in (await local())), "the metrics to be cleared");
+    out.keysAfterClear = await keys();
+    out.linksAfterClear = await storedLinks();
+    out.hitsShown = [...doc.querySelectorAll("#links tbody tr")].map((r) => r.cells[2].textContent);
+
+    // Reset to default: cancel and Escape change nothing, confirm is a factory reset.
+    await seedLocal();
+    click("reset-btn");
+    out.resetDialogOpen = dialog.open;
+    out.resetText = doc.getElementById("confirm-text").textContent;
+    click("confirm-cancel");
+    await settle();
+    click("reset-btn");
+    dialog.close(); // what Escape does
+    await settle();
+    await sleep(300);
+    out.linksAfterResetCancel = await storedLinks();
+    out.keysAfterResetCancel = await keys();
+
+    click("reset-btn");
+    click("confirm-ok");
+    await settle();
+    await waitFor(async () => "gh" in (await storedLinks()), "the defaults");
+    await waitFor(async () => !("helpSort" in (await local())), "helpSort to be removed");
+    out.linksAfterReset = await storedLinks();
+    out.seeded = Object.keys(await browser.storage.sync.get(null)).filter((k) => k.startsWith("seeded:")).length;
+    out.ruleGithub = await waitFor(() => hasRule("github"), "the rule for a default");
+    out.ruleMine = await hasRule("zzmine");
+    await sleep(300);
+    const after = await local();
+    out.keysAfterReset = Object.keys(after).sort();
+    out.mineStat = after.linkMetrics?.zzmine;
+    out.deviceIdAfter = after.deviceId;
+    return out;
   }
   throw new Error(`unknown op ${cmd.op}`);
 }

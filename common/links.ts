@@ -131,3 +131,25 @@ async function getLinks(): Promise<Links> {
 async function readLinks(): Promise<Links> {
   return linksFromItems(await api.storage.sync.get(null));
 }
+
+// Resetting to the shipped links: what to remove and what to write, given the
+// stored sync items. Removes every `link:*` item; writes each shipped default
+// as `link:<name>` with its `seeded:<name>` marker, so seedDefaults() finds
+// nothing left to do (the markers of defaults the user had deleted come back
+// too, which is the point). Other items are left alone.
+function resetLinksPlan(stored: Record<string, unknown>): { remove: string[]; set: Record<string, unknown> } {
+  const set: Record<string, unknown> = {};
+  for (const [name, url] of Object.entries(SHIPPED_LINKS)) {
+    set[linkKey(name)] = url;
+    set[SEEDED_PREFIX + name] = true;
+  }
+  return { remove: Object.keys(stored).filter((key) => key.startsWith(LINK_PREFIX)), set };
+}
+
+// Replaces the user's links by the shipped ones: one storage.remove, then one
+// storage.set (no code writes a whole list). Synced, so every device follows.
+async function resetLinks(): Promise<void> {
+  const plan = resetLinksPlan(await api.storage.sync.get(null));
+  if (plan.remove.length > 0) await api.storage.sync.remove(plan.remove);
+  await api.storage.sync.set(plan.set);
+}
