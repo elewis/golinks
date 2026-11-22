@@ -37,9 +37,14 @@ test("not-found page carries the name; the shared form saves, validates, lists a
   assert.equal(r.confirmLabel, "Overwrite go/gh (now -> https://github.com)");
   assert.equal(r.wroteBeforeConfirm, false);
   assert.equal(r.helpForms, 1);
+  assert.equal(r.helpAligned, true, "go/help: name and URL boxes line up with the Link and Destination columns");
+  assert.equal(r.helpAlignedLong, true, "go/help: still lined up with a very long destination");
+  assert.match(r.helpConfirmLabel, /^Overwrite go\/gh \(now -> /);
+  assert.equal(r.helpWroteBeforeConfirm, false);
+  assert.equal(r.helpStatus, "Saved go/gh");
 
   await navigate("https://go/zznew");
   assert.equal(await fx.ff.waitUrl((u) => u.startsWith("https://example.com/")), "https://example.com/new");
   await navigate("https://go/gh");
-  assert.equal(await fx.ff.waitUrl((u) => u.startsWith("https://example.com/")), "https://example.com/mine");
+  assert.equal(await fx.ff.waitUrl((u) => u.startsWith("https://example.com/")), "https://example.com/fromhelp");
 });

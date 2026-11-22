@@ -79,7 +79,37 @@ describe("add-link form", () => {
   test("go/help carries the same form", async () => {
     await open("https://go/help", `${fx.chrome.origin}/index.html`);
     assert.equal(await ev(`document.querySelectorAll("#add-link-form").length`), 1);
-    assert.equal(await ev(`document.querySelector("#add-link #link-name") !== null`), true);
+    assert.equal(await ev(`document.querySelector("#user-links tfoot #link-name") !== null`), true);
+  });
+
+  test("go/help: the name and URL boxes line up with the Link and Destination columns (content boxes)", async () => {
+    await open("https://go/help", `${fx.chrome.origin}/index.html`);
+    const aligned = () =>
+      ev(`(() => {
+        const [th1, th2] = document.querySelectorAll("#user-links th");
+        const box = (th) => {
+          const r = th.getBoundingClientRect();
+          const s = getComputedStyle(th), l = parseFloat(s.paddingLeft);
+          return { left: r.left + l, width: r.width - l - parseFloat(s.paddingRight) };
+        };
+        const near = (a, b) => Math.abs(a - b) < 1;
+        const [n, u] = ["link-name", "link-url"].map((i) => document.getElementById(i).getBoundingClientRect());
+        return near(n.left, box(th1).left) && near(n.width, box(th1).width) && near(u.left, box(th2).left) && near(u.width, box(th2).width);
+      })()`);
+    assert.equal(await aligned(), true);
+    const long = `https://example.com/${"x".repeat(300)}`;
+    await ev(
+      `chrome.storage.sync.get("localLinks").then((r) => chrome.storage.sync.set({ localLinks: { ...r.localLinks, zzlong: ${JSON.stringify(long)} } }))`,
+    );
+    await until(
+      () =>
+        ev(`[...document.querySelectorAll("#user-links td")].some((td) => td.textContent === ${JSON.stringify(long)})`),
+      "the long row",
+    );
+    assert.equal(await aligned(), true, "still lined up with a very long destination");
+    await ev(
+      `chrome.storage.sync.get("localLinks").then((r) => { const l = { ...r.localLinks }; delete l.zzlong; return chrome.storage.sync.set({ localLinks: l }); })`,
+    );
   });
 
   test("validation: empty, slash, space and reserved names are errors and write nothing", async () => {

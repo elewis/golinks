@@ -7,7 +7,8 @@
 // suites (see CLAUDE.md); hold the hive lease "browser-suites" while it runs.
 //
 // Pages: popup, not-found, help, overwrite (the popup after saving over a taken
-// name), or any extension page path with a query string, e.g. "notfound.html?name=x".
+// name), help-empty / help-error / help-overwrite (go/help with no user links, a
+// validation error, the overwrite confirm), or any extension page path with a query string, e.g. "notfound.html?name=x".
 import { createServer } from "node:http";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -23,6 +24,8 @@ interface Shot {
   click?: string;
   // size to the content, at most 800x600 (a browser's popup limit), instead of a desktop window
   popup?: boolean;
+  // show the page with no user links at all (the sample links are stored again for the next shot)
+  noLinks?: boolean;
 }
 
 const DESKTOP = { width: 1280, height: 800 };
@@ -49,6 +52,21 @@ const NAMED: Record<string, Shot> = {
     fill: { "link-url": "https://example.com/new", "link-name": "docs" },
     click: "add-btn",
     popup: true,
+  },
+  // go/help states: the form's rows with no user links, a validation error, and the overwrite
+  // confirm (board is taken; the URL is the one docs and wiki have, so they are listed too).
+  "help-empty": { label: "help-empty", src: "index.html", noLinks: true },
+  "help-error": {
+    label: "help-error",
+    src: "index.html",
+    fill: { "link-name": "a b", "link-url": "example.com" },
+    click: "add-btn",
+  },
+  "help-overwrite": {
+    label: "help-overwrite",
+    src: "index.html",
+    fill: { "link-name": "board", "link-url": SAMPLE_TAB_URL },
+    click: "add-btn",
   },
 };
 
@@ -113,9 +131,17 @@ async function shootFirefox(shots: Shot[]): Promise<void> {
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const serverPort = (server.address() as { port: number }).port;
     try {
-      writeFileSync(path.join(dir, "seed.json"), JSON.stringify({ localLinks: SEED_LINKS, hits: SEED_HITS }));
-      await run("seed");
+      const seed = async (localLinks: Record<string, string>) => {
+        writeFileSync(path.join(dir, "seed.json"), JSON.stringify({ localLinks, hits: SEED_HITS }));
+        await run("seed");
+      };
+      await seed(SEED_LINKS);
+      let empty = false;
       for (const shot of shots) {
+        if (!!shot.noLinks !== empty) {
+          empty = !!shot.noLinks;
+          await seed(empty ? {} : SEED_LINKS);
+        }
         writeFileSync(path.join(dir, "shot.json"), JSON.stringify(shot));
         await ff.setWindowRect(DESKTOP.width, DESKTOP.height);
         // First pass as a top-level page: measures the content and reports its origin.
@@ -173,7 +199,13 @@ async function shootChrome(shots: Shot[]): Promise<void> {
       await chrome.storage.local.set({ linkMetrics: metrics });
       return true;
     })()`);
+    let empty = false;
     for (const shot of shots) {
+      if (!!shot.noLinks !== empty) {
+        empty = !!shot.noLinks;
+        await ev(`chrome.storage.sync.set({ localLinks: ${JSON.stringify(empty ? {} : SEED_LINKS)} })`);
+        await new Promise((r) => setTimeout(r, 400));
+      }
       await chrome.setViewport(page, DESKTOP.width, DESKTOP.height);
       await open(shot.src);
       await ev(`(() => {
@@ -206,7 +238,7 @@ async function shootChrome(shots: Shot[]): Promise<void> {
 const args = process.argv.slice(2);
 if (args.includes("--help") || args.includes("-h")) {
   console.log(
-    "usage: pnpm screenshot [firefox|chrome|both] [page ...]\npages: popup, not-found, help, overwrite, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
+    "usage: pnpm screenshot [firefox|chrome|both] [page ...]\npages: popup, not-found, help, overwrite, help-empty, help-error, help-overwrite, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
   );
   process.exit(0);
 }

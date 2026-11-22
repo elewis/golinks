@@ -63,9 +63,13 @@
     });
   }
 
+  const userTable = byId<HTMLTableElement>("user-links");
+  const userBody = userTable.createTBody();
+
   function populateUserLinks(links: Links): void {
     shownLocal = links;
-    const table = byId("user-links");
+    // Only the body is rebuilt: the form's rows (tfoot) keep their text, focus and listeners.
+    const table = userBody;
     table.innerHTML = "";
     table.appendChild(headerRow(true));
 
@@ -95,7 +99,7 @@
     });
   }
 
-  initLinkForm(byId("add-link"));
+  initLinkForm(byId("add-link"), {}, userTable);
   // The shared form (and deletes from other pages) change the stored links.
   api.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === "sync" && changes.localLinks)

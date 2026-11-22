@@ -164,6 +164,50 @@ async function run(cmd) {
     // go/help has the same form.
     const help = await open("index.html");
     out.helpForms = help.doc.querySelectorAll("#add-link #add-link-form").length;
+    // The form's boxes sit under the Link and Destination columns, as wide as their content box.
+    const align = () => {
+      const [th1, th2] = help.doc.querySelectorAll("#user-links th");
+      const box = (th) => {
+        const r = th.getBoundingClientRect();
+        const s = help.doc.defaultView.getComputedStyle(th);
+        const l = parseFloat(s.paddingLeft);
+        return { left: r.left + l, width: r.width - l - parseFloat(s.paddingRight) };
+      };
+      const near = (a, b) => Math.abs(a - b) < 1;
+      const [n, u] = ["link-name", "link-url"].map((i) => help.id(i).getBoundingClientRect());
+      return (
+        near(n.left, box(th1).left) &&
+        near(n.width, box(th1).width) &&
+        near(u.left, box(th2).left) &&
+        near(u.width, box(th2).width)
+      );
+    };
+    out.helpAligned = align();
+    // A very long destination widens the column; the box follows.
+    const long = `https://example.com/${"x".repeat(300)}`;
+    await browser.storage.sync.set({ localLinks: { ...(await local()), zzlong: long } });
+    await waitFor(
+      () => [...help.doc.querySelectorAll("#user-links td")].some((td) => td.textContent === long),
+      "long row",
+    );
+    out.helpAlignedLong = align();
+    await browser.storage.sync.set({
+      localLinks: Object.fromEntries(Object.entries(await local()).filter(([k]) => k !== "zzlong")),
+    });
+    await waitFor(
+      () => ![...help.doc.querySelectorAll("#user-links td")].some((td) => td.textContent === long),
+      "long row gone",
+    );
+    // The confirm works from go/help's own form (its controls sit outside the <form>, tied by form=).
+    help.set("gh", "https://example.com/fromhelp");
+    help.id("add-btn").click();
+    await waitFor(() => help.id("add-btn").textContent.startsWith("Overwrite"), "help confirm button");
+    out.helpConfirmLabel = help.id("add-btn").textContent;
+    await sleep(300);
+    out.helpWroteBeforeConfirm = (await local()).gh === "https://example.com/fromhelp";
+    help.id("add-btn").click();
+    await waitFor(async () => (await local()).gh === "https://example.com/fromhelp", "help overwrite stored");
+    out.helpStatus = help.id("link-status").textContent;
     return out;
   }
   if (cmd.op === "seed") {
@@ -173,7 +217,8 @@ async function run(cmd) {
     if (seed.hits) {
       // Wait for the background to record the edits, then add the sample hits to them.
       const get = async () => (await browser.storage.local.get("linkMetrics")).linkMetrics;
-      await waitFor(async () => (await get())?.[Object.keys(seed.localLinks).pop()]?.lastEdit, "edits");
+      const last = Object.keys(seed.localLinks).pop();
+      if (last) await waitFor(async () => (await get())?.[last]?.lastEdit, "edits");
       const metrics = (await get()) ?? {};
       const now = Math.floor(Date.now() / 1000);
       for (const [name, [count, ago]] of Object.entries(seed.hits)) {

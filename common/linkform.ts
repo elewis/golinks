@@ -67,7 +67,15 @@ async function saveLink(name: string, url: string): Promise<void> {
 
 // Builds the form inside `container`. The caller passes what to prefill; the
 // other field starts empty, and the empty one gets the focus.
-function initLinkForm(container: HTMLElement, prefill: { name?: string; url?: string } = {}): void {
+// With `table` (go/help) the controls become rows of that table instead: name
+// under its first column, URL under its second (each as wide as the column),
+// the button after them, and the messages in a full-width row below. The
+// <form> element stays in `container`; the controls point at it by `form=`.
+function initLinkForm(
+  container: HTMLElement,
+  prefill: { name?: string; url?: string } = {},
+  table?: HTMLTableElement,
+): void {
   const doc = container.ownerDocument;
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, text = "") => {
     const e = doc.createElement(tag);
@@ -97,17 +105,41 @@ function initLinkForm(container: HTMLElement, prefill: { name?: string; url?: st
   // No visible labels; the inputs carry aria-labels. Messages go below the row.
   nameInput.setAttribute("aria-label", "Link name");
   urlInput.setAttribute("aria-label", "Link URL");
-  const cellOf = (kid: HTMLElement) => {
+  const cellOf = (kid: HTMLElement, colSpan = 1) => {
     const td = el("td");
+    if (colSpan > 1) td.colSpan = colSpan;
     td.append(kid);
     return td;
   };
-  const tr = el("tr");
-  tr.append(cellOf(nameInput), cellOf(urlInput), cellOf(addBtn));
-  const inputRow = el("table");
-  inputRow.append(tr);
-  form.append(inputRow, nameError, urlError, existing, status);
-  container.append(form);
+  if (table) {
+    const tfoot = el("tfoot");
+    const controls = el("tr");
+    const messages = el("tr");
+    for (const control of [nameInput, urlInput, addBtn]) control.setAttribute("form", form.id);
+    for (const input of [nameInput, urlInput]) {
+      input.style.width = "100%";
+      input.style.boxSizing = "border-box";
+    }
+    // Same right padding as the other cells, so the boxes end where the columns' text does.
+    const name = cellOf(nameInput);
+    const url = cellOf(urlInput);
+    name.style.paddingRight = url.style.paddingRight = "1em";
+    // The button spans the usage and delete columns: the overwrite text is long.
+    controls.append(name, url, cellOf(addBtn, 4));
+    const rest = el("div");
+    rest.append(nameError, urlError, existing, status);
+    messages.append(cellOf(rest, 6));
+    tfoot.append(controls, messages);
+    table.append(tfoot);
+    container.append(form);
+  } else {
+    const tr = el("tr");
+    tr.append(cellOf(nameInput), cellOf(urlInput), cellOf(addBtn));
+    const inputRow = el("table");
+    inputRow.append(tr);
+    form.append(inputRow, nameError, urlError, existing, status);
+    container.append(form);
+  }
 
   nameInput.value = prefill.name ?? "";
   urlInput.value = prefill.url ?? "";
