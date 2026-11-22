@@ -5,9 +5,12 @@
 const RESERVED_NAMES = ["help"];
 
 // What the user typed, as a link name: trimmed, without a leading "go/",
-// lowercase (names are case-insensitive).
+// lowercase (names are case-insensitive; ASCII only, so the Kelvin sign K is not folded into a k).
 function normalizeLinkName(raw: string): string {
-  return raw.trim().replace(/^go\//i, "").toLowerCase();
+  return raw
+    .trim()
+    .replace(/^go\//i, "")
+    .replace(/[A-Z]/g, (c) => c.toLowerCase());
 }
 
 // What the user typed as a destination, trimmed. Without a scheme it gets
@@ -49,9 +52,7 @@ function checkLink(rawName: string, rawUrl: string, links: Links): LinkCheck {
   const url = withScheme(rawUrl);
   const errors: { name?: string; url?: string } = {};
   if (!name) errors.name = "Enter a name.";
-  else if (name.includes("/")) errors.name = 'A name cannot contain "/".';
-  else if (/\s/.test(name)) errors.name = "A name cannot contain spaces.";
-  else if (/[?#]/.test(name)) errors.name = 'A name cannot contain "?" or "#".';
+  else if (!/^[a-z0-9_-]+$/.test(name)) errors.name = "Use only letters, digits, - and _.";
   else if (RESERVED_NAMES.includes(name)) errors.name = `go/${name} is reserved.`;
   if (!url) errors.url = "Enter a URL.";
   else if (!isFullUrl(url)) {

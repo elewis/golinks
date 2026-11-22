@@ -168,7 +168,7 @@ async function run(cmd) {
     out.popFocus = pop.doc.activeElement.id;
     // Validation writes nothing.
     const before = JSON.stringify(await local());
-    for (const name of ["", "a/b", "a b", "help"]) {
+    for (const name of ["", "a/b", "a b", "a.b", "c++", "a%b", "help"]) {
       pop.set(name, "https://x.test");
       pop.id("add-btn").click();
       await waitFor(() => pop.id("link-name-error").textContent, `error for ${JSON.stringify(name)}`);

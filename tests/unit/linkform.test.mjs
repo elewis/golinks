@@ -111,7 +111,16 @@ test("checkLink: a name with a slash or whitespace is an error", () => {
   assert.ok(check("go/a/b", "https://x.test").errors.name);
   assert.ok(check("what?", "https://x.test").errors.name);
   assert.ok(check("a#b", "https://x.test").errors.name);
-  assert.equal(check("c++", "https://x.test").ok, true);
+});
+
+test("checkLink: only ASCII letters, digits, - and _ are accepted in a name", () => {
+  for (const ok of ["gh", "my-link", "my_link", "A1", "go/GH"]) assert.equal(check(ok, "https://x.test").ok, true, ok);
+  for (const bad of ["a%b", "a.b", "c++", "é", "a b", "a*b", "a|b", "\u212Aelvin", "日本", ""]) {
+    const r = check(bad, "https://x.test");
+    assert.equal(r.ok, false, JSON.stringify(bad));
+    assert.ok(r.errors.name, JSON.stringify(bad));
+  }
+  assert.match(check("a.b", "https://x.test").errors.name, /letters, digits, - and _/);
 });
 
 test("checkLink: help is reserved", () => {

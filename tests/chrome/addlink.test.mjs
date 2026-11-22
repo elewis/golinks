@@ -111,13 +111,16 @@ describe("add-link form", () => {
     await ev(`chrome.storage.sync.remove("link:zzlong")`);
   });
 
-  test("validation: empty, slash, space and reserved names are errors and write nothing", async () => {
+  test("validation: empty, slash, space, ., +, % and reserved names are errors and write nothing", async () => {
     await open(`${fx.chrome.origin}/popup.html`);
     const before = await local();
     for (const [name, url, id] of [
       ["", "https://x.test", "link-name-error"],
       ["a/b", "https://x.test", "link-name-error"],
       ["a b", "https://x.test", "link-name-error"],
+      ["a.b", "https://x.test", "link-name-error"],
+      ["c++", "https://x.test", "link-name-error"],
+      ["a%b", "https://x.test", "link-name-error"],
       ["help", "https://x.test", "link-name-error"],
       ["okname", "", "link-url-error"],
     ]) {
