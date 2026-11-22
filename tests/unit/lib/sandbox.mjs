@@ -67,6 +67,7 @@ export function load(files, fake = fakeApi()) {
     console: { debug: sink("debug"), log: sink("log"), warn: sink("warn"), error: sink("error") },
     URL,
     structuredClone,
+    crypto: globalThis.crypto,
   });
   for (const f of files) vm.runInContext(emittedSource(path.join(REPO, f)), ctx, { filename: f });
   return { fake, ctx, logs, get: (expr) => vm.runInContext(expr, ctx) };

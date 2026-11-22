@@ -141,11 +141,33 @@ function updateMetrics(change: (metrics: LinkMetrics) => LinkMetrics): Promise<u
   return metricsQueue;
 }
 
+// The stable id of this device: a random UUID in storage.local.deviceId, made
+// on first use and never changed (separate from linkMetrics, so the metrics
+// keep their shape). Concurrent first calls share one promise, so there is one
+// id and one write; a failure is not cached.
+let deviceIdPromise: Promise<string> | null = null;
+
+function getDeviceId(): Promise<string> {
+  deviceIdPromise ??= (async () => {
+    const { deviceId }: { deviceId?: unknown } = await api.storage.local.get("deviceId");
+    if (typeof deviceId === "string" && deviceId !== "") return deviceId;
+    const id = crypto.randomUUID();
+    await api.storage.local.set({ deviceId: id });
+    return id;
+  })().catch((e) => {
+    deviceIdPromise = null;
+    throw e;
+  });
+  return deviceIdPromise;
+}
+
 // Register the background listeners (call it synchronously at the top level,
 // so a Chrome service worker can be woken by the events):
 // - a go/ redirect fact (see redirects.ts) from a saved name is a hit,
 // - a changed destination in sync localLinks is an edit.
 function startMetrics(): void {
+  getDeviceId().catch((e) => console.error("GoLinks: creating the device id failed:", e));
+
   observeRedirects(async (fact) => {
     const name = hitName(fact, await readLinks(), api.runtime.getURL(""));
     if (name) {

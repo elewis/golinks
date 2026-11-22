@@ -175,7 +175,7 @@ test("a failing write is logged and does not block the next", async () => {
   let fail = true;
   const set = fake.api.storage.local.set;
   fake.api.storage.local.set = async (v) => {
-    if (fail) {
+    if (fail && "linkMetrics" in v) {
       fail = false;
       throw new Error("quota");
     }
@@ -201,4 +201,72 @@ test("hitName: a scheme upgrade (http://go/gh -> https://go/gh) is no hit; a lin
   assert.equal(name("http://go/GH", "https://go/gh/"), null);
   assert.equal(name("http://go/gh", "https://github.com/"), "gh");
   assert.equal(name("https://go/other", "https://go/gh"), "other");
+});
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+test("getDeviceId creates a UUID once, keeps it in storage.local.deviceId and returns the same one after", async () => {
+  const { fake, get } = sb();
+  const id = await get("getDeviceId()");
+  assert.match(id, UUID);
+  assert.equal(fake.store.local.deviceId, id);
+  assert.equal(await get("getDeviceId()"), id);
+  assert.equal(fake.store.local.linkMetrics, undefined);
+});
+
+test("getDeviceId keeps an id already in storage, also in a fresh context", async () => {
+  const fake = (await import("./lib/sandbox.mjs")).fakeApi();
+  fake.store.local.deviceId = "existing-id";
+  const { get } = load([...COMMON, "common/redirects.ts", "common/metrics.ts"], fake);
+  assert.equal(await get("getDeviceId()"), "existing-id");
+  assert.equal(fake.store.local.deviceId, "existing-id");
+});
+
+test("getDeviceId replaces an unusable stored value", async () => {
+  const fake = (await import("./lib/sandbox.mjs")).fakeApi();
+  fake.store.local.deviceId = "";
+  const { get } = load([...COMMON, "common/redirects.ts", "common/metrics.ts"], fake);
+  assert.match(await get("getDeviceId()"), UUID);
+});
+
+test("a burst of concurrent first calls makes one id and one write", async () => {
+  const { fake, get } = sb();
+  let writes = 0;
+  const set = fake.api.storage.local.set;
+  fake.api.storage.local.set = async (v) => {
+    if ("deviceId" in v) writes++;
+    return set(v);
+  };
+  const ids = await Promise.all(Array.from({ length: 50 }, () => get("getDeviceId()")));
+  assert.equal(new Set(ids).size, 1);
+  assert.equal(writes, 1);
+  assert.equal(fake.store.local.deviceId, ids[0]);
+});
+
+test("a failed first write is not cached: the next call tries again", async () => {
+  const { fake, get } = sb();
+  let fail = true;
+  const set = fake.api.storage.local.set;
+  fake.api.storage.local.set = async (v) => {
+    if (fail) {
+      fail = false;
+      throw new Error("quota");
+    }
+    return set(v);
+  };
+  await assert.rejects(get("getDeviceId()"), /quota/);
+  assert.match(await get("getDeviceId()"), UUID);
+});
+
+test("startMetrics creates the device id, and a hit does not change it", async () => {
+  const { fake, get } = sb();
+  get("startMetrics()");
+  await tick();
+  const id = fake.store.local.deviceId;
+  assert.match(id, UUID);
+  const [[listener]] = fake.listeners.redirect;
+  await fire(listener, { url: "https://go/github", redirectUrl: "https://github.com/" });
+  await get("metricsQueue");
+  assert.equal(fake.store.local.deviceId, id);
+  assert.deepEqual(Object.keys(fake.store.local.linkMetrics), ["github"]);
 });
