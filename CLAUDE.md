@@ -69,7 +69,7 @@ The extension files are classic scripts that share globals: no `import`/`export`
 - Hybrid approach: webRequest for protocol-less URLs, declarativeNetRequest for actual redirects
 
 ## Design system
-One stylesheet, `common/theme.css`, for every extension page. Tokens (colours, fonts, sizes, spacing, radius) are CSS custom properties on `:root`; pages use the component classes, never inline `.style.*` in `common/*.ts` and never colour literals outside `theme.css`. Light mode only (no `prefers-color-scheme` block), system fonts only (nothing downloaded or bundled), plain CSS with no build step or dependency. Muted colours, low-contrast borders, 4 px radius. A new page links `theme.css` and reuses the classes; a new look is a new token or class there. `common/styleguide.html` is the living reference: it shows every token and component class with its states (`pnpm screenshot styleguide`).
+One stylesheet, `common/theme.css`, for every extension page. Tokens (colours, fonts, sizes, spacing, radius) are CSS custom properties on `:root`; pages use the component classes, never inline `.style.*` in `common/*.ts` and never colour literals outside `theme.css`. Light mode only (no `prefers-color-scheme` block), system fonts only (nothing downloaded or bundled), plain CSS with no build step or dependency. Muted colours, low-contrast borders, 4 px radius. A new page links `theme.css` and reuses the classes; a new look is a new token or class there. `common/styleguide.html` is the living reference: it shows every token and component class with its states (`pnpm screenshot styleguide`). `tests/build/design.test.mjs` (run by `pnpm test`) enforces these rules and names file and line.
 
 ## Chrome/Firefox Parity
 Shared code lives once, in `common/`, so it cannot drift. There is no diff-based check any more.
@@ -126,6 +126,9 @@ Run `pnpm build:chrome`, then load `dist/chrome` as an unpacked extension. Navig
 
 ### Firefox  
 Run `pnpm build:firefox`, then load `dist/firefox` (or `pnpm load:firefox`, which builds first). Navigate to `go/github` (protocol-less works!), `https://go/cs/test`, or `https://go/help`. Check extension console at `about:debugging`.
+
+### Design guard
+`tests/build/design.test.mjs` (checks in `tests/lib/design-guard.mjs`; fast, no browser, part of `pnpm test`) scans `.ts`, `.html`, `.css` and `.svg` in `common/`, `chrome/` and `firefox/` and fails, naming file and line, on: (1) a colour literal outside `common/theme.css`: `rgb()`/`hsl()`-style functions anywhere; hex in `.css` declarations (inside braces, so `#id` selectors pass); named colours as values of colour properties in `.css` and as `fill`/`stroke`/`color` attributes; in `.html`/`.ts`/`.svg` a hex counts only on a line that also names a colour property (`fill`, `color`, `background`, `border`, ...). Comments are ignored. (2) in `common/*.ts` and `common/*.html`: a write through `.style` (`.style.x`, `.style =`; reading `rule.style.getPropertyValue` is fine), `setAttribute("style")`, a `style="` attribute or a `<style>` element. (3) any `.html` page that does not link `theme.css`. Blind spots: a hex in a `.ts` string on a line with no colour property name, named colours in `.html`/`.ts` other than as `fill`/`stroke`/`color` attributes, and colours built from strings. Unavoidable uses go in `ALLOW` (file, line, rule, reason; empty now). The test also runs the checks on planted violations.
 
 ### Build tests
 ```
