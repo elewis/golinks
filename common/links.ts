@@ -45,6 +45,12 @@ function linkKey(name: string): string {
   return LINK_PREFIX + name.toLowerCase();
 }
 
+// The URL of `go/<name>` as a real link: `https://go/<name>`, what both browsers' rules match. Only what a path
+// cannot hold is encoded.
+function golinkHref(name: string): string {
+  return `https://go/${encodeURI(name)}`;
+}
+
 // The links among the stored sync items (lowercased names).
 function linksFromItems(items: Record<string, unknown>): Links {
   const links: Links = {};

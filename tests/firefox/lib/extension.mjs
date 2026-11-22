@@ -61,6 +61,7 @@ const HARNESS_RULES = [
   "metrics",
   "metricsedit",
   "metricshelp",
+  "helplinks",
   "deldefault",
   "sort",
   "danger",

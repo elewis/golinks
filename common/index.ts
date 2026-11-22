@@ -22,6 +22,16 @@
     return cell;
   }
 
+  /** The Link cell: `go/<name>` as a real link (same tab, like typing it). */
+  function golinkCell(name: string): HTMLTableCellElement {
+    const td = cell("", "link-name");
+    const a = document.createElement("a");
+    a.href = golinkHref(name);
+    a.textContent = `go/${name}`;
+    td.appendChild(a);
+    return td;
+  }
+
   // The delete button's ×: an inline stroke icon that takes the button's colour.
   function crossIcon(): SVGSVGElement {
     const ns = "http://www.w3.org/2000/svg";
@@ -105,7 +115,7 @@
     for (const golink of sortedNames(links, metrics, sort)) {
       const destination = links[golink] ?? "";
       const row = document.createElement("tr");
-      row.appendChild(cell(`go/${golink}`, "link-name"));
+      row.appendChild(golinkCell(golink));
       row.appendChild(cell(destination));
       for (const c of statCells(golink)) row.appendChild(c);
 

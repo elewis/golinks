@@ -347,6 +347,16 @@ async function run(cmd) {
       );
     return { rows: rows() };
   }
+  if (cmd.op === "helplinks") {
+    const doc = await loadForm();
+    await waitFor(() => doc.querySelector("#links tbody tr"), "link rows");
+    const anchors = [...doc.querySelectorAll("td.link-name a")];
+    return {
+      hrefs: Object.fromEntries(anchors.map((a) => [a.textContent, a.getAttribute("href")])),
+      cells: [...doc.querySelectorAll("td.link-name")].length,
+      target: anchors.map((a) => a.target).filter(Boolean),
+    };
+  }
   if (cmd.op === "sort") {
     await browser.storage.local.remove("helpSort");
     const snap = (d) => ({

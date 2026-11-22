@@ -25,7 +25,7 @@ The toolbar popup and the not-found page share one add-link form:
 
 ## The go/help page
 
-`go/help` (also bare `go/`) lists all your links in one table with their hits, last hit, last edited and a delete button, and has the add-link form as its last row. Click a column header to sort by it; the choice is remembered on that device. The "Settings" section at the bottom has one row per setting, a title with a short description and the control at the right. **Appearance** sets Light, Dark or System (follows the browser or system setting) for all of the extension's pages on that device. Then:
+`go/help` (also bare `go/`) lists all your links in one table with their hits, last hit, last edited and a delete button, and has the add-link form as its last row. Each link name is a real link to `https://go/<name>`, so a click follows it in the same tab (and counts as a hit). Click a column header to sort by it; the choice is remembered on that device. The "Settings" section at the bottom has one row per setting, a title with a short description and the control at the right. **Appearance** sets Light, Dark or System (follows the browser or system setting) for all of the extension's pages on that device. Then:
 
 - **Clear metrics** clears the hit counts and the redirect log, on this device only. It asks for confirmation first. Your links are not touched.
 - **Reset to default** (the very last thing on the page) is a full factory reset. It clears all your links and adds the shipped defaults again, on every synced device, and on this device it also clears the metrics, the redirect log and the saved sort order. It asks for confirmation first.

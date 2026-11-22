@@ -105,6 +105,28 @@ describe("link usage metrics", () => {
     assert.equal(rows["go/gg"][3], "never");
   });
 
+  test("go/help's Link cells are links to https://go/<name>; following one reaches its destination", async () => {
+    const help = await fx.chrome.newPage();
+    await fx.chrome.navigate(help, `${fx.chrome.origin}/index.html`);
+    await until(() => fx.chrome.evaluate(help, `document.querySelectorAll("#links tbody tr").length > 0`), "rows");
+    const info = await fx.chrome.evaluate(
+      help,
+      `({ cells: document.querySelectorAll("td.link-name").length,
+          hrefs: Object.fromEntries([...document.querySelectorAll("td.link-name a")].map((a) => [a.textContent, a.getAttribute("href")])),
+          targets: [...document.querySelectorAll("td.link-name a")].filter((a) => a.target).length })`,
+    );
+    assert.equal(
+      Object.keys(info.hrefs).length,
+      info.cells,
+      "every Link cell holds an <a> (Get Started's go/help too)",
+    );
+    assert.equal(info.hrefs["go/github"], "https://go/github");
+    assert.equal(info.hrefs["go/help"], "https://go/help");
+    assert.equal(info.targets, 0, "same tab");
+    await fx.chrome.evaluate(help, `document.querySelector("td.link-name a[href='https://go/github']").click()`);
+    await fx.chrome.waitUrl(help, (u) => u.startsWith("https://github.com/"));
+  });
+
   test("go/help sorts by link A→Z at first, by the clicked column, and remembers the choice", async () => {
     const snap = `(() => {
       const rows = [...document.querySelectorAll("#links tbody tr")];

@@ -95,6 +95,16 @@ describe("link usage metrics", () => {
     assert.equal(rows["go/gg"][3], "never");
   });
 
+  test("go/help's Link cells are links to https://go/<name>; following one reaches its destination", async () => {
+    const { hrefs, cells, target } = await harness("helplinks");
+    assert.equal(Object.keys(hrefs).length, cells, "every Link cell holds an <a> (Get Started's go/help too)");
+    assert.equal(hrefs["go/github"], "https://go/github");
+    assert.equal(hrefs["go/help"], "https://go/help");
+    assert.deepEqual(target, [], "same tab");
+    await navigate(hrefs["go/github"]);
+    await fx.ff.waitUrl((u) => u.startsWith("https://github.com/"));
+  });
+
   test("go/help sorts by link A→Z at first, by the clicked column, and remembers the choice", async () => {
     const { initial, hitsDesc, hitsAsc, stored, remembered } = await harness("sort");
     const az = [...initial.names].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
