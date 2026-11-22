@@ -125,23 +125,8 @@ a:hover {
 }
 
 .brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   font-size: 15px;
   font-weight: var(--weight-semibold);
-}
-
-.brand-mark {
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius);
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-  font-size: var(--text-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .page-label {
