@@ -6,7 +6,7 @@
 // a UI change by eye: it is not a test. Needs the same programs as the browser
 // suites (see CLAUDE.md); hold the hive lease "browser-suites" while it runs.
 //
-// Pages: popup, not-found, help, overwrite (the popup after saving over a taken
+// Pages: popup, not-found, help, help-sorted (go/help sorted by hits), overwrite (the popup after saving over a taken
 // name), help-empty / help-error / help-overwrite (go/help with no user links, a
 // validation error, the overwrite confirm), styleguide (the design system page, linked from no UI), or any extension page path with a query string, e.g. "notfound.html?name=x".
 import { createServer } from "node:http";
@@ -24,6 +24,8 @@ interface Shot {
   click?: string;
   // size to the content, at most 800x600 (a browser's popup limit), instead of a desktop window
   popup?: boolean;
+  // text of a Links table header to click (go/help), to show the table sorted by that column
+  sortBy?: string;
   // show the page with no user links at all (the sample links are stored again for the next shot)
   noLinks?: boolean;
   // a window taller than the desktop one, to show a long page whole
@@ -52,6 +54,7 @@ const NAMED: Record<string, Shot> = {
   popup: { label: "popup", src: "popup.html", fill: { "link-url": SAMPLE_TAB_URL }, popup: true },
   "not-found": { label: "not-found", src: "notfound.html?name=zzsample" },
   help: { label: "help", src: "index.html" },
+  "help-sorted": { label: "help-sorted", src: "index.html", sortBy: "Hits" },
   overwrite: {
     label: "overwrite",
     src: "popup.html",
@@ -220,6 +223,7 @@ async function shootChrome(shots: Shot[]): Promise<void> {
         await new Promise((r) => setTimeout(r, 400));
       }
       await chrome.setViewport(page, (shot.tall ? TALL : DESKTOP).width, (shot.tall ? TALL : DESKTOP).height);
+      await ev(`chrome.storage.local.remove("helpSort")`); // the remembered sort is per device
       await open(shot.src);
       await ev(`(() => {
         for (const [id, value] of Object.entries(${JSON.stringify(shot.fill ?? {})})) {
@@ -229,6 +233,10 @@ async function shootChrome(shots: Shot[]): Promise<void> {
         }
         return true;
       })()`);
+      if (shot.sortBy)
+        await ev(
+          `[...document.querySelectorAll("#links th button")].find((b) => b.textContent === ${JSON.stringify(shot.sortBy)}).click(); true`,
+        );
       if (shot.click) await ev(`document.getElementById(${JSON.stringify(shot.click)}).click(); true`);
       await new Promise((r) => setTimeout(r, 400));
       if (shot.popup) {
@@ -251,7 +259,7 @@ async function shootChrome(shots: Shot[]): Promise<void> {
 const args = process.argv.slice(2);
 if (args.includes("--help") || args.includes("-h")) {
   console.log(
-    "usage: pnpm screenshot [firefox|chrome|both] [page ...]\npages: popup, not-found, help, overwrite, help-empty, help-error, help-overwrite, styleguide, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
+    "usage: pnpm screenshot [firefox|chrome|both] [page ...]\npages: popup, not-found, help, help-sorted, overwrite, help-empty, help-error, help-overwrite, styleguide, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
   );
   process.exit(0);
 }

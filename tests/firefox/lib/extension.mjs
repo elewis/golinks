@@ -62,6 +62,7 @@ const HARNESS_RULES = [
   "metricsedit",
   "metricshelp",
   "deldefault",
+  "sort",
 ].map((op, i) => ({
   id: i + 1,
   priority: 100,

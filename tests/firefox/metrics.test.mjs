@@ -94,4 +94,23 @@ describe("link usage metrics", () => {
     assert.equal(rows["go/gg"][2], "0");
     assert.equal(rows["go/gg"][3], "never");
   });
+
+  test("go/help sorts by link A→Z at first, by the clicked column, and remembers the choice", async () => {
+    const { initial, hitsDesc, hitsAsc, stored, remembered } = await harness("sort");
+    const az = [...initial.names].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    assert.deepEqual(initial.names, az);
+    assert.deepEqual(initial.sorted, ["Link:ascending"]);
+    assert.deepEqual(hitsDesc.sorted, ["Hits:descending"]);
+    assert.deepEqual(
+      hitsDesc.hits,
+      [...hitsDesc.hits].sort((a, b) => b - a),
+    );
+    assert.deepEqual(hitsAsc.sorted, ["Hits:ascending"]);
+    assert.deepEqual(
+      hitsAsc.hits,
+      [...hitsAsc.hits].sort((a, b) => a - b),
+    );
+    assert.deepEqual(stored, { column: "hits", dir: "asc" });
+    assert.deepEqual(remembered, hitsAsc, "a new page load keeps the choice");
+  });
 });

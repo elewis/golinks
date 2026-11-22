@@ -104,4 +104,45 @@ describe("link usage metrics", () => {
     assert.equal(rows["go/gg"][2], "0");
     assert.equal(rows["go/gg"][3], "never");
   });
+
+  test("go/help sorts by link A→Z at first, by the clicked column, and remembers the choice", async () => {
+    const snap = `(() => {
+      const rows = [...document.querySelectorAll("#links tbody tr")];
+      return {
+        names: rows.map((r) => r.firstChild.textContent),
+        hits: rows.map((r) => Number(r.cells[2].textContent)),
+        sorted: [...document.querySelectorAll("#links th[aria-sort]")].map((th) => th.textContent + ":" + th.getAttribute("aria-sort")),
+      };
+    })()`;
+    const clickHits = `[...document.querySelectorAll("#links th button")].find((b) => b.textContent === "Hits").click()`;
+    const open = async () => {
+      await fx.chrome.navigate(ext, `${fx.chrome.origin}/index.html`);
+      await until(() => fx.chrome.evaluate(ext, `document.querySelectorAll("#links tbody tr").length > 0`), "rows");
+    };
+    await fx.chrome.evaluate(ext, `chrome.storage.local.remove("helpSort")`);
+    await open();
+    const initial = await fx.chrome.evaluate(ext, snap);
+    assert.deepEqual(
+      initial.names,
+      [...initial.names].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    );
+    assert.deepEqual(initial.sorted, ["Link:ascending"]);
+    await fx.chrome.evaluate(ext, clickHits);
+    const desc = await fx.chrome.evaluate(ext, snap);
+    assert.deepEqual(desc.sorted, ["Hits:descending"]);
+    assert.deepEqual(
+      desc.hits,
+      [...desc.hits].sort((a, b) => b - a),
+    );
+    await fx.chrome.evaluate(ext, clickHits);
+    const asc = await fx.chrome.evaluate(ext, snap);
+    assert.deepEqual(asc.sorted, ["Hits:ascending"]);
+    assert.deepEqual(
+      asc.hits,
+      [...asc.hits].sort((a, b) => a - b),
+    );
+    await open();
+    assert.deepEqual(await fx.chrome.evaluate(ext, snap), asc, "a new page load keeps the choice");
+    await fx.chrome.evaluate(ext, `chrome.storage.local.remove("helpSort")`);
+  });
 });

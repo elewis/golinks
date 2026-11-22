@@ -252,6 +252,7 @@ async function run(cmd) {
   }
   if (cmd.op === "frame") {
     const shot = await (await fetch("shot.json")).json();
+    await browser.storage.local.remove("helpSort"); // the remembered sort is per device: each shot starts at the default
     document.body.style.margin = "0";
     const frame = document.createElement("iframe");
     frame.style.cssText = "border:0;width:100vw;height:100vh;display:block";
@@ -272,6 +273,9 @@ async function run(cmd) {
     if (shot.click) {
       doc.getElementById(shot.click).click();
       await sleep(300);
+    }
+    if (shot.sortBy) {
+      [...doc.querySelectorAll("#links th button")].find((b) => b.textContent === shot.sortBy).click();
     }
     await sleep(300);
     if (parent !== window) parent.postMessage("frame-ready", "*");
@@ -337,6 +341,30 @@ async function run(cmd) {
         ]),
       );
     return { rows: rows() };
+  }
+  if (cmd.op === "sort") {
+    await browser.storage.local.remove("helpSort");
+    const snap = (d) => ({
+      names: [...d.querySelectorAll("#links tbody tr")].map((r) => r.firstChild.textContent),
+      hits: [...d.querySelectorAll("#links tbody tr")].map((r) => Number(r.cells[2].textContent)),
+      sorted: [...d.querySelectorAll("#links th[aria-sort]")].map(
+        (th) => `${th.textContent}:${th.getAttribute("aria-sort")}`,
+      ),
+    });
+    const header = (d, text) => [...d.querySelectorAll("#links th button")].find((b) => b.textContent === text);
+    const doc = await loadForm();
+    await waitFor(() => doc.querySelector("#links tbody tr"), "link rows");
+    const initial = snap(doc);
+    header(doc, "Hits").click();
+    const hitsDesc = snap(doc);
+    header(doc, "Hits").click();
+    const hitsAsc = snap(doc);
+    const stored = (await browser.storage.local.get("helpSort")).helpSort;
+    const doc2 = await loadForm();
+    await waitFor(() => doc2.querySelector("#links tbody tr"), "link rows after reload");
+    const remembered = snap(doc2);
+    await browser.storage.local.remove("helpSort");
+    return { initial, hitsDesc, hitsAsc, stored, remembered };
   }
   throw new Error(`unknown op ${cmd.op}`);
 }
