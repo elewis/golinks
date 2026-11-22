@@ -1,6 +1,6 @@
 // Check 2: go/ URLs redirect, or render the extension's pages, as documented.
-// Chrome matches the full https:// form (a bare go/github typed in the address
-// bar is a search, which the extension cannot intercept).
+// These use the full https:// form; a bare go/github typed in the address bar
+// also works in Chrome, but DevTools cannot drive the omnibox (checked by hand).
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { startChrome } from "./lib/fixture.mjs";

@@ -65,8 +65,7 @@ Instead of those clicks, `pnpm load:firefox` builds and installs the add-on into
 
 ## Usage
 
-- **Chrome**: type `https://go/github` in the address bar (Chrome treats a bare `go/github` as a search).
-- **Firefox**: `go/github` works as typed, without the protocol.
+- **Chrome and Firefox**: type `go/github` in the address bar, without the protocol. (`https://go/github` works too.)
 
 Examples (both browsers): `go/github`, `go/mail`, `go/cs/react` (searches GitHub for "react"), `go/help`.
 
@@ -89,7 +88,7 @@ Rules of the names: not empty, no `/`, `?`, `#` or whitespace, and not `help`.
 
 ## Technical Details
 
-- **Chrome**: Manifest V3 service worker, `declarativeNetRequest` for the redirects
+- **Chrome**: Manifest V3 service worker, `declarativeNetRequest` for the redirects; a bare `go/...` typed in the address bar works without any extra code (checked by hand in real Chrome)
 - **Firefox**: Manifest V3 event page, `declarativeNetRequest` for the redirects plus a `webRequest` listener that catches `go/...` typed in the address bar (Firefox turns it into a search)
 - **Cross-browser**: shared code lives once in `common/`; only the manifests, the two `background.ts` files and Firefox's `search.ts` differ
 - **Source**: TypeScript with no compiler: the build strips the types with Node's `stripTypeScriptTypes`, and only Node built-ins are used
