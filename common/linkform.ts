@@ -10,9 +10,20 @@ function normalizeLinkName(raw: string): string {
   return raw.trim().replace(/^go\//i, "").toLowerCase();
 }
 
-// A URL for comparing: trimmed, without one trailing "/".
+// What the user typed as a destination, trimmed. Without a scheme it gets
+// "https://", or "http://" for the host localhost (only when a link is saved or looked up, never at redirect time).
+// A scheme is "://" in the text, or "name:" not followed by a port digit
+// (`mailto:x`, `javascript:x` keep theirs and fail the check; `localhost:8080` has none).
+function withScheme(raw: string): string {
+  const url = raw.trim();
+  if (!url || url.includes("://") || url.startsWith("//") || /^[a-z][a-z0-9+.-]*:(?!\d)/i.test(url)) return url;
+  // Only the exact host localhost is plain http (local dev servers); everything else gets https.
+  return /^localhost(?=[:/?#]|$)/i.test(url) ? `http://${url}` : `https://${url}`;
+}
+
+// A URL for comparing: with its scheme, trimmed, without one trailing "/".
 function comparableUrl(url: string): string {
-  return url.trim().replace(/\/$/, "");
+  return withScheme(url).replace(/\/$/, "");
 }
 
 type LinkCheck =
@@ -35,7 +46,7 @@ function isFullUrl(url: string): boolean {
 
 function checkLink(rawName: string, rawUrl: string, links: Links): LinkCheck {
   const name = normalizeLinkName(rawName);
-  const url = rawUrl.trim();
+  const url = withScheme(rawUrl);
   const errors: { name?: string; url?: string } = {};
   if (!name) errors.name = "Enter a name.";
   else if (name.includes("/")) errors.name = 'A name cannot contain "/".';
@@ -43,7 +54,13 @@ function checkLink(rawName: string, rawUrl: string, links: Links): LinkCheck {
   else if (/[?#]/.test(name)) errors.name = 'A name cannot contain "?" or "#".';
   else if (RESERVED_NAMES.includes(name)) errors.name = `go/${name} is reserved.`;
   if (!url) errors.url = "Enter a URL.";
-  else if (!isFullUrl(url)) errors.url = "Enter a full URL starting with http:// or https://";
+  else if (!isFullUrl(url)) {
+    // A typed scheme that is not http(s) gets the scheme hint; otherwise the URL is just invalid.
+    errors.url =
+      /^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !/^https?:/i.test(url)
+        ? "Enter a full URL starting with http:// or https://"
+        : "Enter a valid URL.";
+  }
   if (errors.name || errors.url) return { ok: false, errors };
   // Any case variant of the name counts as taken; the exact key first.
   const key = Object.hasOwn(links, name) ? name : Object.keys(links).find((k) => k.toLowerCase() === name);

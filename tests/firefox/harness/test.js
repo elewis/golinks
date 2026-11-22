@@ -130,7 +130,7 @@ async function run(cmd) {
     out.nfName = nf.id("link-name").value;
     out.nfUrl = nf.id("link-url").value;
     out.nfFocus = nf.doc.activeElement.id;
-    nf.set("zznew", "https://example.com/new");
+    nf.set("zznew", "example.com/new");
     nf.id("add-btn").click();
     await waitFor(async () => (await local()).zznew === "https://example.com/new", "zznew stored");
     await waitFor(() => hasRule("zznew"), "rule for zznew");

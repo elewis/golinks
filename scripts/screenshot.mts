@@ -59,7 +59,7 @@ const NAMED: Record<string, Shot> = {
   "help-error": {
     label: "help-error",
     src: "index.html",
-    fill: { "link-name": "a b", "link-url": "example.com" },
+    fill: { "link-name": "a b", "link-url": "ftp://example.com" },
     click: "add-btn",
   },
   "help-overwrite": {

@@ -44,7 +44,7 @@ describe("add-link form", () => {
     assert.equal(await ev(`document.getElementById("link-name").value`), "zznew");
     assert.equal(await ev(`document.getElementById("link-url").value`), "");
     assert.equal(await ev(`document.activeElement.id`), "link-url");
-    await fill("zznew", "https://example.com/new");
+    await fill("zznew", "example.com/new");
     await click();
     await until(async () => (await local()).zznew === "https://example.com/new", "the link in storage");
     assert.equal(await text("link-status"), "Saved go/zznew");
@@ -134,10 +134,21 @@ describe("add-link form", () => {
       await ev(`[document.getElementById("link-name").value, document.getElementById("link-url").value]`),
       ["okname", ""],
     );
-    await fill("okname", "notaurl");
+    await fill("okname", "ftp://x.test/f");
     await click();
     await until(async () => (await text("link-url-error")) !== "", "the URL error");
-    assert.equal(await ev(`document.getElementById("link-url").value`), "notaurl", "an error keeps what was typed");
+    assert.equal(
+      await ev(`document.getElementById("link-url").value`),
+      "ftp://x.test/f",
+      "an error keeps what was typed",
+    );
+  });
+
+  test("a destination without a scheme is saved with https://, localhost with http://", async () => {
+    await open(`${fx.chrome.origin}/popup.html`);
+    await fill("zzlocal", "localhost:3000/x");
+    await click();
+    await until(async () => (await local()).zzlocal === "http://localhost:3000/x", "the localhost link in storage");
   });
 
   test("existing links for the URL are listed in the form, trailing / ignored, and do not block another name", async () => {
