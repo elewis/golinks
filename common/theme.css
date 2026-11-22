@@ -187,7 +187,7 @@ a:hover {
   border-bottom: 1px solid var(--color-border);
 }
 
-/* A sortable column header: a real button, with an arrow on the active column (th[aria-sort]). */
+/* A sortable column header: a real button, with a sort mark on the active column (th[aria-sort]). */
 .sort-btn {
   display: inline-flex;
   align-items: center;
@@ -211,12 +211,22 @@ th[aria-sort] .sort-btn {
   box-shadow: 0 0 0 3px var(--color-accent-ring);
 }
 
+/* The sort mark: two small triangles, up over down with a gap between them, drawn by clip-path over a
+   two-tone background. The triangle for the current direction is dark, the other faint (up = A to Z,
+   lowest or oldest first; down = the reverse). */
+th[aria-sort] .sort-btn::after {
+  content: "";
+  width: 7px;
+  height: 10px;
+  clip-path: polygon(50% 0, 100% 40%, 0 40%, 0 60%, 100% 60%, 50% 100%, 0 60%, 0 40%);
+}
+
 th[aria-sort="ascending"] .sort-btn::after {
-  content: "\2191";
+  background: linear-gradient(var(--color-text) 50%, var(--color-control) 50%);
 }
 
 th[aria-sort="descending"] .sort-btn::after {
-  content: "\2193";
+  background: linear-gradient(var(--color-control) 50%, var(--color-text) 50%);
 }
 
 .data-table td {
