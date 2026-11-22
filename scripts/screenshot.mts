@@ -8,7 +8,7 @@
 //
 // Pages: popup, not-found, help, overwrite (the popup after saving over a taken
 // name), help-empty / help-error / help-overwrite (go/help with no user links, a
-// validation error, the overwrite confirm), or any extension page path with a query string, e.g. "notfound.html?name=x".
+// validation error, the overwrite confirm), styleguide (the design system page, linked from no UI), or any extension page path with a query string, e.g. "notfound.html?name=x".
 import { createServer } from "node:http";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -26,9 +26,12 @@ interface Shot {
   popup?: boolean;
   // show the page with no user links at all (the sample links are stored again for the next shot)
   noLinks?: boolean;
+  // a window taller than the desktop one, to show a long page whole
+  tall?: boolean;
 }
 
 const DESKTOP = { width: 1280, height: 800 };
+const TALL = { width: 1280, height: 2800 };
 const POPUP_MAX = { width: 800, height: 600 };
 
 // A destination with two go links, plus one other link; the defaults add more.
@@ -53,6 +56,8 @@ const NAMED: Record<string, Shot> = {
     click: "add-btn",
     popup: true,
   },
+  // The style guide: an extension page that no UI links to (see common/styleguide.html).
+  styleguide: { label: "styleguide", src: "styleguide.html", tall: true },
   // go/help states: the form's rows with no user links, a validation error, and the overwrite
   // confirm (board is taken; the URL is the one docs and wiki have, so they are listed too).
   "help-empty": { label: "help-empty", src: "index.html", noLinks: true },
@@ -147,7 +152,7 @@ async function shootFirefox(shots: Shot[]): Promise<void> {
         // First pass as a top-level page: measures the content and reports its origin.
         const result = await run("frame");
         const origin = (await ff.currentUrl()).split("/test.html")[0];
-        const size = shot.popup ? fit(result) : DESKTOP;
+        const size = shot.popup ? fit(result) : shot.tall ? TALL : DESKTOP;
         await ff.setWindowRect(size.width, size.height);
         await ff.get(`http://go:${serverPort}/?src=${encodeURIComponent(`${origin}/test.html?op=frame`)}`);
         await ff.waitFor(
@@ -181,7 +186,11 @@ async function shootChrome(shots: Shot[]): Promise<void> {
     const open = async (src: string) => {
       await chrome.navigate(page, `${chrome.origin}/${src}`);
       await chrome.waitUrl(page, (u: string) => u.startsWith(chrome.origin));
-      for (let i = 0; i < 100 && !(await ev(`!!document.getElementById("add-btn")`)); i++) {
+      for (
+        let i = 0;
+        i < 100 && !(await ev(`!!(document.getElementById("add-btn") || document.body?.dataset.ready)`));
+        i++
+      ) {
         await new Promise((r) => setTimeout(r, 50));
       }
     };
@@ -206,7 +215,7 @@ async function shootChrome(shots: Shot[]): Promise<void> {
         await ev(`chrome.storage.sync.set({ localLinks: ${JSON.stringify(empty ? {} : SEED_LINKS)} })`);
         await new Promise((r) => setTimeout(r, 400));
       }
-      await chrome.setViewport(page, DESKTOP.width, DESKTOP.height);
+      await chrome.setViewport(page, (shot.tall ? TALL : DESKTOP).width, (shot.tall ? TALL : DESKTOP).height);
       await open(shot.src);
       await ev(`(() => {
         for (const [id, value] of Object.entries(${JSON.stringify(shot.fill ?? {})})) {
@@ -238,7 +247,7 @@ async function shootChrome(shots: Shot[]): Promise<void> {
 const args = process.argv.slice(2);
 if (args.includes("--help") || args.includes("-h")) {
   console.log(
-    "usage: pnpm screenshot [firefox|chrome|both] [page ...]\npages: popup, not-found, help, overwrite, help-empty, help-error, help-overwrite, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
+    "usage: pnpm screenshot [firefox|chrome|both] [page ...]\npages: popup, not-found, help, overwrite, help-empty, help-error, help-overwrite, styleguide, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
   );
   process.exit(0);
 }

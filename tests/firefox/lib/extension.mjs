@@ -80,7 +80,7 @@ export function buildExtension() {
   writeFileSync(path.join(dir, "harness-rules.json"), JSON.stringify(HARNESS_RULES));
   const manifestPath = path.join(dir, "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  manifest.web_accessible_resources[0].resources.push("test.html", "popup.html");
+  manifest.web_accessible_resources[0].resources.push("test.html", "popup.html", "styleguide.html");
   manifest.declarative_net_request = {
     rule_resources: [{ id: "harness", enabled: true, path: "harness-rules.json" }],
   };

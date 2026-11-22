@@ -239,7 +239,9 @@ async function run(cmd) {
     frame.src = shot.src;
     document.body.appendChild(frame);
     const doc = await waitFor(
-      () => frame.contentDocument?.getElementById("add-btn") && frame.contentDocument,
+      () =>
+        (frame.contentDocument?.getElementById("add-btn") || frame.contentDocument?.body?.dataset.ready) &&
+        frame.contentDocument,
       `form in ${shot.src}`,
     );
     const fire = (el) => el.dispatchEvent(new Event("input", { bubbles: true }));

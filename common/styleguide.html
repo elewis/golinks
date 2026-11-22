@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GoLinks - style guide</title>
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="styleguide.css">
+</head>
+<body>
+    <main class="page">
+        <div class="card">
+            <header class="page-header">
+                <div class="brand">GoLinks</div>
+                <div class="page-label">style guide</div>
+            </header>
+            <div class="card-body">
+                <p class="muted guide-intro">
+                    Every token and component class of <code>theme.css</code>, rendered with that file alone. Token
+                    values are read from the stylesheet when the page loads. Use tokens and classes, never raw colours.
+                    This page is not linked from the extension.
+                </p>
+
+                <section class="section">
+                    <h2 class="section-title">Colour</h2>
+                    <div class="guide-grid" id="guide-colors"></div>
+                </section>
+
+                <section class="section">
+                    <h2 class="section-title">Type</h2>
+                    <div class="guide-rows" id="guide-fonts"></div>
+                    <div class="guide-rows" id="guide-sizes"></div>
+                    <div class="guide-rows" id="guide-weights"></div>
+                </section>
+
+                <section class="section">
+                    <h2 class="section-title">Space and shape</h2>
+                    <div class="guide-rows" id="guide-space"></div>
+                    <div class="guide-grid" id="guide-shape"></div>
+                </section>
+
+                <section class="section">
+                    <h2 class="section-title">Card, page header, headings</h2>
+                    <div class="card">
+                        <header class="page-header">
+                            <div class="brand">GoLinks</div>
+                            <div class="page-label">go/help</div>
+                        </header>
+                        <div class="card-body">
+                            <div class="eyebrow">Eyebrow</div>
+                            <h2 class="page-title">Page title</h2>
+                            <h3 class="section-title">Section title</h3>
+                            <div class="muted">Secondary text (<code>muted</code>) and <span class="mono">mono text</span>.</div>
+                        </div>
+                    </div>
+                    <div class="muted">Also: <code>card-popup</code> (padded raised card), <code>page-popup</code> (380 px toolbar popup), <code>page-narrow</code>.</div>
+                </section>
+
+                <section class="section">
+                    <h2 class="section-title">Table</h2>
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Link</th><th>Destination</th><th class="num">Hits</th><th>Last hit</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="link-name">go/docs</td>
+                                <td>https://docs.example.com/</td>
+                                <td class="num">42</td>
+                                <td class="dim">1 hour ago</td>
+                                <td class="icon-cell">
+                                    <button type="button" class="icon-btn" aria-label="Delete go/docs" title="Delete link">
+                                        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="link-name">go/cs</td>
+                                <td>https://cs.example.com/search?q=%s</td>
+                                <td class="num">1</td>
+                                <td class="dim">45 seconds ago</td>
+                                <td class="icon-cell"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="muted">Cell classes: <code>link-name</code> (mono, accent), <code>num</code> (right, tabular), <code>dim</code> (muted), <code>icon-cell</code>. Hover a delete button for its danger colour.</div>
+                </section>
+
+                <section class="section">
+                    <h2 class="section-title">Form: field, label, input</h2>
+                    <div class="form guide-form">
+                        <div class="field">
+                            <label class="label" for="g-normal">Name (normal)</label>
+                            <input class="input" id="g-normal" placeholder="Placeholder">
+                        </div>
+                        <div class="field">
+                            <label class="label" for="g-focus">URL (focus: accent border and ring)</label>
+                            <input class="input input-mono" id="g-focus" value="https://docs.example.com/">
+                        </div>
+                        <div class="field">
+                            <label class="label" for="g-error">Name (error: an <code>input</code> with <code>msg-error</code> under it)</label>
+                            <input class="input" id="g-error" value="a b">
+                            <div class="msg-error" role="alert">Names cannot contain spaces.</div>
+                        </div>
+                        <div class="field">
+                            <label class="label" for="g-mono">Mono input (<code>input-mono</code>)</label>
+                            <input class="input input-mono" id="g-mono" value="go/docs">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="section">
+                    <h2 class="section-title">Buttons</h2>
+                    <div class="guide-form">
+                        <div><button type="button" class="btn btn-primary">Add link</button></div>
+                        <div>
+                            <button type="button" class="btn btn-primary">Overwrite go/docs (now -&gt; https://docs.example.com/a/very/long/destination/that/wraps?because=it-is-long)</button>
+                        </div>
+                        <div class="muted">Hover darkens to <code>--color-accent-hover</code>; keyboard focus shows the ring. The second is the overwrite confirm, whose text wraps.</div>
+                        <div>
+                            <button type="button" class="icon-btn" aria-label="Delete" title="Delete link">
+                                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>
+                            </button>
+                            <span class="muted">Icon button: faint, danger on hover.</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="section">
+                    <h2 class="section-title">Messages and note</h2>
+                    <div class="guide-form">
+                        <div class="msg-error">msg-error: Enter a full http(s) URL.</div>
+                        <div class="msg-status">msg-status: Saved go/docs</div>
+                        <div class="note">
+                            Links that already point here:
+                            <ul><li>go/docs</li><li>go/wiki</li></ul>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+    <script type="text/javascript" src="styleguide.js"></script>
+</body>
+</html>
