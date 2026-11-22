@@ -81,16 +81,32 @@ async function saveLink(name: string, url: string): Promise<void> {
   await api.storage.sync.set({ [linkKey(name)]: url });
 }
 
+// The status line after a save.
+function savedText(name: string, url: string): string {
+  return `Saved go/${name} -> ${url}`;
+}
+
+// What a surface can do with the form once a link is saved (see `onSaved`).
+type LinkFormHandle = {
+  // Disables the boxes and the button: nothing more can be submitted.
+  lock(): void;
+  // Shows a success line (class msg-success) in place of the plain status.
+  showSuccess(text: string): void;
+};
+
 // Builds the form inside `container`. The caller passes what to prefill; the
 // other field starts empty, and the empty one gets the focus.
 // With `table` (go/help) the controls become rows of that table instead: name
 // under its first column, URL under its second (each as wide as the column),
 // the button after them, and the messages in a full-width row below. The
 // <form> element stays in `container`; the controls point at it by `form=`.
+// `onSaved` replaces what happens after a successful save (default: empty boxes,
+// focus on the name, "Saved go/x"); it gets the saved link and a handle.
 function initLinkForm(
   container: HTMLElement,
   prefill: { name?: string; url?: string } = {},
   table?: HTMLTableElement,
+  onSaved?: (saved: { name: string; url: string }, form: LinkFormHandle) => void,
 ): void {
   const doc = container.ownerDocument;
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, text = "") => {
@@ -227,11 +243,23 @@ function initLinkForm(
     }
     await saveLink(result.name, result.url);
     resetConfirm();
-    // Saved: empty boxes for the next link; the status keeps saying what was saved.
-    nameInput.value = "";
-    urlInput.value = "";
-    nameInput.focus();
-    status.textContent = `Saved go/${result.name}`;
+    if (onSaved) {
+      onSaved(result, {
+        lock() {
+          for (const control of [nameInput, urlInput, addBtn]) control.disabled = true;
+        },
+        showSuccess(text) {
+          status.className = "msg-success";
+          status.textContent = text;
+        },
+      });
+    } else {
+      // Saved: empty boxes for the next link; the status keeps saying what was saved.
+      nameInput.value = "";
+      urlInput.value = "";
+      nameInput.focus();
+      status.textContent = `Saved go/${result.name}`;
+    }
     await reload();
   }
 

@@ -148,7 +148,7 @@ describe("add-link form", () => {
   });
 
   test("existing links for the URL are listed in the form, trailing / ignored, and do not block another name", async () => {
-    await open(`${fx.chrome.origin}/popup.html`);
+    await open(`${fx.chrome.origin}/notfound.html?name=zzgit`);
     await fill("", "https://github.com/");
     const list = () => ev(`[...document.querySelectorAll("#link-existing-list li")].map((l) => l.textContent).sort()`);
     await until(async () => (await list()).length > 0, "the list");
@@ -190,12 +190,21 @@ describe("add-link form", () => {
       async () => (await ev(`document.getElementById("add-btn").textContent`)).startsWith("Overwrite"),
       "the confirm again",
     );
+    // The popup closes itself after a save; window.close is stubbed here (a tab is no popup).
+    await ev(`window.__closed = 0; window.close = () => { window.__closed++; }; true`);
     await click();
     await until(async () => (await local()).gh === "https://example.com/mine", "the overwrite");
-    assert.equal(await text("link-status"), "Saved go/gh");
-    assert.equal(await ev(`document.getElementById("link-name").value`), "");
-    assert.equal(await ev(`document.getElementById("link-url").value`), "");
-    assert.equal(await ev(`document.getElementById("add-btn").textContent`), "Add");
+    await until(async () => (await text("link-status")) !== "", "the success line");
+    assert.equal(await text("link-status"), "Saved go/gh -> https://example.com/mine");
+    assert.equal(await ev(`document.getElementById("link-status").className`), "msg-success");
+    assert.deepEqual(
+      await ev(`["link-name", "link-url", "add-btn"].map((i) => document.getElementById(i).disabled)`),
+      [true, true, true],
+      "the form cannot be submitted again while the popup waits to close",
+    );
+    assert.equal(await ev(`window.__closed`), 0, "not closed at once");
+    await until(async () => (await ev(`window.__closed`)) > 0, "the popup to close itself");
+    assert.equal(await ev(`window.__closed`), 1);
     await fx.chrome.navigate(page, "https://go/gh");
     assert.equal(
       await fx.chrome.waitUrl(page, (u) => u.startsWith("https://example.com/")),

@@ -1,4 +1,9 @@
 // Toolbar popup: the add-link form with the current tab's URL filled in.
+// After a save it shows what was saved, locks the form, and closes itself.
+
+// How long the success line stays before the popup closes.
+const POPUP_CLOSE_DELAY_MS = 1200;
+
 (async () => {
   const container = document.getElementById("add-link");
   if (!container) throw new Error("popup.html has no #add-link");
@@ -10,5 +15,9 @@
   } catch (e) {
     console.error("GoLinks: reading the active tab failed:", e);
   }
-  initLinkForm(container, { url });
+  initLinkForm(container, { url }, undefined, (saved, form) => {
+    form.lock();
+    form.showSuccess(savedText(saved.name, saved.url));
+    setTimeout(() => window.close(), POPUP_CLOSE_DELAY_MS);
+  });
 })();

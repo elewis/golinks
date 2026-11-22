@@ -11,7 +11,7 @@
 // throwaway test profile only) and saves <page>-dark.png. --appearance <mode> stores that choice (Light or Dark
 // ignore the emulation) and saves <page>-<mode>.png.
 //
-// Pages: popup, not-found, help, help-sorted (go/help sorted by hits), help-dialog (go/help with the reset confirmation open), overwrite (the popup after saving over a taken
+// Pages: popup, not-found, help, help-sorted (go/help sorted by hits), help-dialog (go/help with the reset confirmation open), popup-saved (the popup just after a save), overwrite (the popup after saving over a taken
 // name), help-empty / help-error / help-overwrite (go/help with no user links, a
 // validation error, the overwrite confirm), styleguide (the design system page, linked from no UI), or any extension page path with a query string, e.g. "notfound.html?name=x".
 import { createServer } from "node:http";
@@ -75,6 +75,14 @@ const NAMED: Record<string, Shot> = {
     label: "overwrite",
     src: "popup.html",
     fill: { "link-url": "https://example.com/new", "link-name": "docs" },
+    click: "add-btn",
+    popup: true,
+  },
+  // The popup just after a save: the success line, the form locked, a moment before it closes.
+  "popup-saved": {
+    label: "popup-saved",
+    src: "popup.html",
+    fill: { "link-name": "wiki2", "link-url": "https://docs.example.com/wiki" },
     click: "add-btn",
     popup: true,
   },
@@ -297,7 +305,7 @@ if (at >= 0) {
 const args = argv.filter((a, i) => a !== "--dark" && a !== "--appearance" && !(at >= 0 && i === at + 1));
 if (args.includes("--help") || args.includes("-h")) {
   console.log(
-    "usage: pnpm screenshot [firefox|chrome|both] [page ...] [--dark] [--appearance light|dark|system]\npages: popup, not-found, help, help-full, help-sorted, help-full, help-dialog, overwrite, help-empty, help-error, help-overwrite, styleguide, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
+    "usage: pnpm screenshot [firefox|chrome|both] [page ...] [--dark] [--appearance light|dark|system]\npages: popup, not-found, help, help-full, help-sorted, help-full, help-dialog, popup-saved, overwrite, help-empty, help-error, help-overwrite, styleguide, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
   );
   process.exit(0);
 }

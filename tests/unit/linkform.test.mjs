@@ -191,3 +191,7 @@ test("saveLink: writes only its own link:<name> item, lowercase; an overwrite is
   assert.deepEqual(sets, [{ "link:gh": "https://new" }, { "link:gh": "https://newer" }]);
   assert.deepEqual(plain(fake.store.sync), { "link:keep": "https://k", "link:gh": "https://newer" });
 });
+
+test("savedText: names the link and where it goes", () => {
+  assert.equal(sb().get(`savedText("docs", "https://x.test/d")`), "Saved go/docs -> https://x.test/d");
+});

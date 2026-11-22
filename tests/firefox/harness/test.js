@@ -187,8 +187,21 @@ async function run(cmd) {
     out.confirmLabel = pop.id("add-btn").textContent;
     await sleep(300);
     out.wroteBeforeConfirm = (await local()).gh !== "https://github.com";
+    // The popup closes itself after a save: window.close is stubbed (a frame cannot close).
+    let closed = 0;
+    pop.doc.defaultView.close = () => closed++;
     pop.id("add-btn").click();
     await waitFor(async () => (await local()).gh === "https://example.com/mine", "overwrite stored");
+    await waitFor(() => pop.id("link-status").textContent, "popup success line");
+    out.popSaved = {
+      text: pop.id("link-status").textContent,
+      cls: pop.id("link-status").className,
+      disabled: ["link-name", "link-url", "add-btn"].map((i) => pop.id(i).disabled),
+      values: [pop.id("link-name").value, pop.id("link-url").value],
+      closedEarly: closed,
+    };
+    await waitFor(() => closed > 0, "the popup to close itself", 4000);
+    out.popClosed = closed;
     // go/help has the same form.
     const help = await open("index.html");
     out.helpForms = help.doc.querySelectorAll("#add-link #add-link-form").length;

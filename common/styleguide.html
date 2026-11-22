@@ -114,6 +114,8 @@
                     <h2 class="section-title">Buttons</h2>
                     <div class="guide-form">
                         <div><button type="button" class="btn btn-primary">Add link</button></div>
+                        <div><button type="button" class="btn btn-primary" disabled>Add link (disabled)</button></div>
+                        <div><input class="input" value="Disabled input" disabled></div>
                         <div>
                             <button type="button" class="btn btn-primary">Overwrite go/docs (now -&gt; https://docs.example.com/a/very/long/destination/that/wraps?because=it-is-long)</button>
                         </div>
@@ -170,6 +172,7 @@
                     <div class="guide-form">
                         <div class="msg-error">msg-error: Enter a full http(s) URL.</div>
                         <div class="msg-status">msg-status: Saved go/docs</div>
+                        <div class="msg-success">msg-success: Saved go/docs -&gt; https://docs.example.com</div>
                         <div class="note">
                             Links that already point here:
                             <ul><li>go/docs</li><li>go/wiki</li></ul>

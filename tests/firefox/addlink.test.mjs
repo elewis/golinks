@@ -38,6 +38,14 @@ test("not-found page carries the name; the shared form saves, validates, lists a
   assert.deepEqual(r.existing, ["go/gh", "go/github"]);
   assert.equal(r.confirmLabel, "Overwrite go/gh (now -> https://github.com)");
   assert.equal(r.wroteBeforeConfirm, false);
+  assert.deepEqual(r.popSaved, {
+    text: "Saved go/gh -> https://example.com/mine",
+    cls: "msg-success",
+    disabled: [true, true, true],
+    values: ["gh", "https://example.com/mine"],
+    closedEarly: 0,
+  });
+  assert.equal(r.popClosed, 1, "the popup closes itself once, after the delay");
   assert.equal(r.helpForms, 1);
   assert.equal(r.helpAligned, true, "go/help: name and URL boxes line up with the Link and Destination columns");
   assert.equal(r.helpAlignedLong, true, "go/help: still lined up with a very long destination");
