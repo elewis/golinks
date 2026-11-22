@@ -13,7 +13,8 @@
 //   op=seed     (pnpm screenshot) store the links from seed.json
 //   op=frame    (pnpm screenshot) show the extension page named in shot.json
 //               in a full-window iframe, fill its fields, report its size
-//   op=danger   drive the danger zone of index.html (reset links, clear metrics; cancel and confirm)
+//   op=danger   drive the danger buttons of index.html Settings (reset links, clear metrics; cancel and confirm)
+//   op=theme    the Appearance control and the page colours (the browser is dark)
 //   op=regex  store links whose names contain regex characters (a.b, c++)
 const LINK = { name: "zzmine", url: "https://example.com/mine" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -254,6 +255,9 @@ async function run(cmd) {
   if (cmd.op === "frame") {
     const shot = await (await fetch("shot.json")).json();
     await browser.storage.local.remove("helpSort"); // the remembered sort is per device: each shot starts at the default
+    // The appearance (pnpm screenshot --appearance): stored like the go/help control does; none is System.
+    if (shot.appearance) await browser.storage.local.set({ appearance: shot.appearance });
+    else await browser.storage.local.remove("appearance");
     document.body.style.margin = "0";
     const frame = document.createElement("iframe");
     frame.style.cssText = "border:0;width:100vw;height:100vh;display:block";
@@ -367,8 +371,38 @@ async function run(cmd) {
     await browser.storage.local.remove("helpSort");
     return { initial, hitsDesc, hitsAsc, stored, remembered };
   }
+  if (cmd.op === "theme") {
+    // Appearance: the browser is dark (pref in the throwaway profile), so System is dark; Light must win.
+    const bg = (doc) => getComputedStyle(doc.body).backgroundColor;
+    const stored = async () => (await browser.storage.local.get("appearance")).appearance;
+    await browser.storage.local.remove("appearance");
+    const doc = await loadForm();
+    const out = { system: bg(doc), theme: doc.documentElement.dataset.theme ?? null };
+    out.pressedSystem = doc.querySelector(".segmented [aria-pressed=true]").dataset.mode;
+    doc.querySelector('.segmented [data-mode="light"]').click();
+    await waitFor(() => doc.documentElement.dataset.theme === "light", "light");
+    out.light = bg(doc);
+    out.storedLight = await stored();
+    const popup = document.createElement("iframe");
+    popup.src = "popup.html";
+    document.body.appendChild(popup);
+    await waitFor(() => popup.contentDocument?.getElementById("add-btn"), "popup");
+    out.popupLight = bg(popup.contentDocument);
+    doc.querySelector('.segmented [data-mode="dark"]').click();
+    await waitFor(() => bg(doc) !== out.light, "dark");
+    out.dark = bg(doc);
+    await waitFor(() => bg(popup.contentDocument) === out.dark, "the popup to follow");
+    doc.querySelector('.segmented [data-mode="system"]').click();
+    await waitFor(async () => (await stored()) === "system", "system stored");
+    out.systemAgain = bg(doc);
+    await browser.storage.local.set({ appearance: "sepia" });
+    await sleep(300);
+    out.invalid = bg(doc);
+    await browser.storage.local.remove("appearance");
+    return out;
+  }
   if (cmd.op === "danger") {
-    // The danger zone of go/help: Cancel changes nothing, confirming does the clear / the factory reset.
+    // The danger buttons of go/help: Cancel changes nothing, confirming does the clear / the factory reset.
     const day = "redirectLog:2026-11-20";
     const seedLocal = () =>
       browser.storage.local.set({
@@ -389,7 +423,7 @@ async function run(cmd) {
     const shipped = SHIPPED_LINKS; // links.js, loaded by test.html
     const out = { shipped };
     out.deviceIdBefore = (await local()).deviceId;
-    out.buttonOrder = [...doc.querySelectorAll(".danger-zone button")].map((b) => b.id);
+    out.buttonOrder = [...doc.querySelectorAll(".settings .btn-danger")].map((b) => b.id);
 
     // Clear metrics: cancel changes nothing, confirm removes metrics and log only.
     click("clear-btn");

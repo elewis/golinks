@@ -13,7 +13,24 @@
       for (const name of rule.style) if (name.startsWith("--")) names.push(name);
     }
   }
-  const value = (name: string) => getComputedStyle(root).getPropertyValue(name).trim();
+  // Whether the page is dark now: the forced mode, else the browser's setting (what theme.css follows).
+  const darkQuery = matchMedia("(prefers-color-scheme: dark)");
+  const isDark = () => (root.dataset.theme ? root.dataset.theme === "dark" : darkQuery.matches);
+  // A token's value in the active mode: light-dark(<light>, <dark>) shows the side in use.
+  const value = (name: string) => {
+    const raw = getComputedStyle(root).getPropertyValue(name).trim();
+    const pair = raw.match(/^(.*?)light-dark\((.*)\)(.*)$/);
+    if (!pair) return raw;
+    let depth = 0;
+    const inner = pair[2] ?? "";
+    for (let i = 0; i < inner.length; i++) {
+      if (inner[i] === "(") depth++;
+      else if (inner[i] === ")") depth--;
+      else if (inner[i] === "," && depth === 0)
+        return `${pair[1]}${(isDark() ? inner.slice(i + 1) : inner.slice(0, i)).trim()}${pair[3]}`;
+    }
+    return raw;
+  };
 
   const generated: string[] = [];
   const row = (host: string, name: string, cls: string, rule: string, sample?: string) => {
@@ -28,6 +45,7 @@
     label.textContent = name;
     const val = document.createElement("div");
     val.className = "value";
+    val.dataset.token = name;
     val.textContent = value(name);
     el.append(mark, label, val);
     document.getElementById(host)?.append(el);
@@ -62,6 +80,14 @@
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(generated.join("\n"));
   document.adoptedStyleSheets = [sheet];
+
+  // The values shown follow the mode: re-read when the choice or the browser's setting changes.
+  const showValues = () => {
+    for (const el of document.querySelectorAll<HTMLElement>(".value[data-token]"))
+      el.textContent = value(el.dataset.token ?? "");
+  };
+  darkQuery.addEventListener("change", showValues);
+  new MutationObserver(showValues).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
 
   // The focus example, shown in its focused state.
   document.getElementById("g-focus")?.focus({ preventScroll: true });

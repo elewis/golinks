@@ -1,4 +1,4 @@
-// The danger zone of go/help: "Reset to default" and "Clear metrics", each behind
+// The Settings section of go/help: "Reset to default" and "Clear metrics", each behind
 // the confirmation dialog. Driven in the extension page.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
@@ -48,7 +48,7 @@ test("clear metrics and reset: cancel and Escape change nothing, confirm does th
   const mine = { zzmine: "https://example.com/mine" };
   const deviceId = await ev(`chrome.storage.local.get("deviceId").then((o) => o.deviceId)`);
   assert.ok(deviceId);
-  assert.deepEqual(await ev(`[...document.querySelectorAll(".danger-zone button")].map((b) => b.id)`), [
+  assert.deepEqual(await ev(`[...document.querySelectorAll(".settings .btn-danger")].map((b) => b.id)`), [
     "clear-btn",
     "reset-btn",
   ]);

@@ -1,10 +1,15 @@
-// pnpm screenshot [firefox|chrome|both] [page ...] [--out <dir>]
+// pnpm screenshot [firefox|chrome|both] [page ...] [--dark] [--appearance light|dark|system]
 //
 // Builds the extension, installs it in headless Firefox and/or Chrome (the
 // test harnesses in tests/*/lib), stores a few sample links, and saves a PNG
 // of each page to .screenshots/<browser>/<page>.png (git-ignored). For checking
 // a UI change by eye: it is not a test. Needs the same programs as the browser
 // suites (see CLAUDE.md); hold the hive lease "browser-suites" while it runs.
+//
+// Appearance: by default the stored choice is none (System) and the browser is light. --dark emulates a dark
+// system (Chrome: Emulation.setEmulatedMedia; Firefox: layout.css.prefers-color-scheme.content-override in the
+// throwaway test profile only) and saves <page>-dark.png. --appearance <mode> stores that choice (Light or Dark
+// ignore the emulation) and saves <page>-<mode>.png.
 //
 // Pages: popup, not-found, help, help-sorted (go/help sorted by hits), help-dialog (go/help with the reset confirmation open), overwrite (the popup after saving over a taken
 // name), help-empty / help-error / help-overwrite (go/help with no user links, a
@@ -30,7 +35,14 @@ interface Shot {
   noLinks?: boolean;
   // a window taller than the desktop one, to show a long page whole
   tall?: boolean;
+  // the stored appearance choice (none = System), set from --appearance
+  appearance?: string;
 }
+
+// Options from the command line (see the header).
+let DARK = false;
+let APPEARANCE: string | undefined;
+const suffix = () => (APPEARANCE ? `-${APPEARANCE}` : DARK ? "-dark" : "");
 
 const DESKTOP = { width: 1280, height: 800 };
 const TALL = { width: 1280, height: 2800 };
@@ -56,6 +68,8 @@ const NAMED: Record<string, Shot> = {
   help: { label: "help", src: "index.html" },
   // go/help with the "Reset to default" confirmation open.
   "help-dialog": { label: "help-dialog", src: "index.html", click: "reset-btn" },
+  // go/help in a tall window, to show the whole page (for docs/images/help.png, cropped).
+  "help-full": { label: "help-full", src: "index.html", tall: true },
   "help-sorted": { label: "help-sorted", src: "index.html", sortBy: "Hits" },
   overwrite: {
     label: "overwrite",
@@ -98,7 +112,7 @@ async function load(rel: string): Promise<any> {
 function save(browser: string, label: string, png: Buffer): void {
   const dir = path.join(REPO, ".screenshots", browser);
   mkdirSync(dir, { recursive: true });
-  const file = path.join(dir, `${label}.png`);
+  const file = path.join(dir, `${label}${suffix()}.png`);
   writeFileSync(file, png);
   console.log(file);
 }
@@ -110,7 +124,7 @@ const fit = (size: { width: number; height: number }) => ({
 
 async function shootFirefox(shots: Shot[]): Promise<void> {
   const { startFirefox } = await load("tests/firefox/lib/fixture.mjs");
-  const fx = await startFirefox();
+  const fx = await startFirefox(DARK ? { "layout.css.prefers-color-scheme.content-override": 0 } : {});
   try {
     const { ff, dir } = fx;
     // The harness page (see tests/firefox/harness/test.js) is the only way to script an
@@ -155,7 +169,7 @@ async function shootFirefox(shots: Shot[]): Promise<void> {
           empty = !!shot.noLinks;
           await seed(empty ? {} : SEED_LINKS);
         }
-        writeFileSync(path.join(dir, "shot.json"), JSON.stringify(shot));
+        writeFileSync(path.join(dir, "shot.json"), JSON.stringify({ ...shot, appearance: APPEARANCE }));
         await ff.setWindowRect(DESKTOP.width, DESKTOP.height);
         // First pass as a top-level page: measures the content and reports its origin.
         const result = await run("frame");
@@ -191,6 +205,12 @@ async function shootChrome(shots: Shot[]): Promise<void> {
   try {
     const { chrome } = fx;
     const page = await chrome.newPage();
+    if (DARK)
+      await chrome.send(
+        "Emulation.setEmulatedMedia",
+        { features: [{ name: "prefers-color-scheme", value: "dark" }] },
+        page.sessionId,
+      );
     const ev = (expr: string) => chrome.evaluate(page, expr);
     const open = async (src: string) => {
       await chrome.navigate(page, `${chrome.origin}/${src}`);
@@ -225,7 +245,13 @@ async function shootChrome(shots: Shot[]): Promise<void> {
         await new Promise((r) => setTimeout(r, 400));
       }
       await chrome.setViewport(page, (shot.tall ? TALL : DESKTOP).width, (shot.tall ? TALL : DESKTOP).height);
-      await ev(`chrome.storage.local.remove("helpSort")`); // the remembered sort is per device
+      // the remembered sort and appearance are per device
+      await ev(
+        APPEARANCE
+          ? `chrome.storage.local.set({ appearance: ${JSON.stringify(APPEARANCE)} })`
+          : `chrome.storage.local.remove("appearance")`,
+      );
+      await ev(`chrome.storage.local.remove("helpSort")`);
       await open(shot.src);
       await ev(`(() => {
         for (const [id, value] of Object.entries(${JSON.stringify(shot.fill ?? {})})) {
@@ -258,10 +284,20 @@ async function shootChrome(shots: Shot[]): Promise<void> {
   }
 }
 
-const args = process.argv.slice(2);
+const argv = process.argv.slice(2);
+DARK = argv.includes("--dark");
+const at = argv.indexOf("--appearance");
+if (at >= 0) {
+  APPEARANCE = argv[at + 1];
+  if (!["light", "dark", "system"].includes(APPEARANCE ?? "")) {
+    console.error("--appearance needs light, dark or system");
+    process.exit(1);
+  }
+}
+const args = argv.filter((a, i) => a !== "--dark" && a !== "--appearance" && !(at >= 0 && i === at + 1));
 if (args.includes("--help") || args.includes("-h")) {
   console.log(
-    "usage: pnpm screenshot [firefox|chrome|both] [page ...]\npages: popup, not-found, help, help-sorted, help-dialog, overwrite, help-empty, help-error, help-overwrite, styleguide, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
+    "usage: pnpm screenshot [firefox|chrome|both] [page ...] [--dark] [--appearance light|dark|system]\npages: popup, not-found, help, help-full, help-sorted, help-full, help-dialog, overwrite, help-empty, help-error, help-overwrite, styleguide, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
   );
   process.exit(0);
 }

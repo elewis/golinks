@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <link rel="stylesheet" href="theme.css">
     <script type="text/javascript" src="api.js"></script>
+    <script type="text/javascript" src="appearance.js"></script>
     <script type="text/javascript" src="links.js"></script>
     <script type="text/javascript" src="linkform.js"></script>
     <script type="text/javascript" src="metrics.js"></script>
@@ -32,18 +33,37 @@
                     <div id="add-link"></div>
                 </section>
 
-                <section class="section danger-zone">
-                    <h2 class="section-title">Danger zone</h2>
-                    <div class="danger-row">
-                        <div class="danger-text">Delete the hit counts and the redirect log of this device.</div>
+                <section class="section settings">
+                    <h2 class="section-title">Settings</h2>
+                    <div class="settings-rows">
+                    <div class="settings-row">
+                        <div class="settings-text">
+                            <div class="settings-title">Appearance</div>
+                            <div class="settings-desc">Remembered on this device. System follows the browser's or the system's light or dark setting.</div>
+                        </div>
+                        <div class="segmented">
+                            <button type="button" aria-pressed="false" data-mode="light">Light</button>
+                            <button type="button" aria-pressed="false" data-mode="dark">Dark</button>
+                            <button type="button" aria-pressed="true" data-mode="system">System</button>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-text">
+                            <div class="settings-title">Clear metrics</div>
+                            <div class="settings-desc">Delete the hit counts and the redirect log on this device.</div>
+                        </div>
                         <button type="button" class="btn btn-danger" id="clear-btn">Clear metrics</button>
                     </div>
-                    <div class="danger-row">
-                        <div class="danger-text">Factory reset: replace all links with the defaults and clear this device's metrics, redirect log and sort order.</div>
+                    <div class="settings-row">
+                        <div class="settings-text">
+                            <div class="settings-title">Reset to default</div>
+                            <div class="settings-desc">Factory reset: replace all links with the defaults (on every synced device) and clear this device's metrics, redirect log, sort order and appearance.</div>
+                        </div>
                         <button type="button" class="btn btn-danger" id="reset-btn">Reset to default</button>
                     </div>
-                    <div class="msg-status" id="danger-status" role="status"></div>
-                    <div class="msg-error" id="danger-error" role="alert"></div>
+                    </div>
+                    <div class="msg-status" id="settings-status" role="status"></div>
+                    <div class="msg-error" id="settings-error" role="alert"></div>
                 </section>
             </div>
         </div>

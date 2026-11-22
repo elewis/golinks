@@ -79,13 +79,13 @@ describe("link storage changes update the rules", () => {
 });
 
 describe("default links are ordinary links", () => {
-  test("go/help has Get Started, one Links table and the Danger zone; deleting go/gg removes its redirect", async () => {
+  test("go/help has Get Started, one Links table and Settings; deleting go/gg removes its redirect", async () => {
     await openOptions();
     const titles = await fx.chrome.evaluate(
       form,
       `[...document.querySelectorAll("h2.section-title")].map((h) => h.textContent)`,
     );
-    assert.deepEqual(titles, ["Get Started", "Links", "Danger zone"]);
+    assert.deepEqual(titles, ["Get Started", "Links", "Settings"]);
     assert.equal(await fx.chrome.evaluate(form, `document.getElementById("default-links") === null`), true);
     await until(
       () =>

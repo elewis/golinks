@@ -3,9 +3,9 @@ import { buildExtension, removeBuild } from "./extension.mjs";
 import { Firefox } from "./firefox.mjs";
 
 /** Start headless Firefox with a fresh copy of the extension installed. */
-export async function startFirefox() {
+export async function startFirefox(extraPrefs = {}) {
   const build = buildExtension();
-  const ff = new Firefox(path.join(build.root, "geckodriver.log"));
+  const ff = new Firefox(path.join(build.root, "geckodriver.log"), extraPrefs);
   try {
     await ff.start();
     await ff.installAddon(build.dir);

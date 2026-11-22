@@ -181,10 +181,13 @@ function startRedirectLog(): void {
 
 // Clearing per-device data: the storage.local keys to remove among the stored
 // ones. Always `linkMetrics` and every redirect log day; with `settings` (the
-// factory reset) also the page's `helpSort`. `deviceId` (identity) always stays.
+// factory reset) also the per-device settings `helpSort` and `appearance` (back to System). `deviceId` (identity) always stays.
 function metricsKeysToClear(stored: Record<string, unknown>, settings = false): string[] {
   return Object.keys(stored).filter(
-    (key) => key === "linkMetrics" || key.startsWith(REDIRECT_LOG_PREFIX) || (settings && key === "helpSort"),
+    (key) =>
+      key === "linkMetrics" ||
+      key.startsWith(REDIRECT_LOG_PREFIX) ||
+      (settings && (key === "helpSort" || key === "appearance")),
   );
 }
 
@@ -193,4 +196,12 @@ function metricsKeysToClear(stored: Record<string, unknown>, settings = false): 
 async function clearMetrics(settings = false): Promise<void> {
   const keys = metricsKeysToClear(await api.storage.local.get(null), settings);
   if (keys.length > 0) await api.storage.local.remove(keys);
+}
+
+// The go/help "Reset to default": a factory reset. This device is cleared FIRST, then the links are reset: the
+// links' sync writes make the background's edit listener read and rewrite linkMetrics (lastEdit), and if the clear
+// came after, a slow read of that task could write the old stats back. Needs links.js (resetLinks()).
+async function factoryReset(): Promise<void> {
+  await clearMetrics(true);
+  await resetLinks();
 }

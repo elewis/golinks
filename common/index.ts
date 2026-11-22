@@ -153,14 +153,14 @@
     done: string,
   ): void {
     byId(buttonId).addEventListener("click", async () => {
-      byId("danger-status").textContent = "";
-      byId("danger-error").textContent = "";
+      byId("settings-status").textContent = "";
+      byId("settings-error").textContent = "";
       if (!(await confirmDialog(confirm.title, confirm.text, confirm.label))) return;
       try {
         await act();
-        byId("danger-status").textContent = done;
+        byId("settings-status").textContent = done;
       } catch (e) {
-        byId("danger-error").textContent = `Could not complete: ${e instanceof Error ? e.message : e}`;
+        byId("settings-error").textContent = `Could not complete: ${e instanceof Error ? e.message : e}`;
       }
     });
   }
@@ -171,12 +171,11 @@
       title: "Reset to default?",
       text:
         "This removes all your links and adds the default ones again, on every device that syncs them. On this " +
-        "device it also clears the hit counts, the redirect log and the table's sort order. It cannot be undone.",
+        "device it also clears the hit counts, the redirect log, the table's sort order and the appearance setting. It cannot be undone.",
       label: "Reset everything",
     },
     async () => {
-      await resetLinks();
-      await clearMetrics(true);
+      await factoryReset();
       sort = DEFAULT_SORT;
       populateLinks(shownLinks);
     },
@@ -194,6 +193,23 @@
     clearMetrics,
     "Metrics cleared.",
   );
+
+  // Appearance (appearance.ts does the painting): the segmented control shows and sets the stored mode.
+  const modeButtons = Array.from(document.querySelectorAll<HTMLButtonElement>(".segmented button[data-mode]"));
+  function showAppearance(value: unknown): void {
+    const mode = validAppearance(value);
+    for (const button of modeButtons) button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
+  }
+  for (const button of modeButtons)
+    button.addEventListener("click", () => {
+      const mode = validAppearance(button.dataset.mode);
+      showAppearance(mode);
+      setAppearance(mode).catch(() => {});
+    });
+  api.storage.local.get(APPEARANCE_KEY).then((stored) => showAppearance(stored[APPEARANCE_KEY]));
+  api.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === "local" && changes[APPEARANCE_KEY]) showAppearance(changes[APPEARANCE_KEY].newValue);
+  });
 
   initLinkForm(byId("add-link"), {}, linksTable);
   // The shared form (and deletes from other pages) change the stored links.

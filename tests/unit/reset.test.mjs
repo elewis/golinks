@@ -72,19 +72,70 @@ test("clearMetrics: keeps deviceId, helpSort and the links", async () => {
 
 test("metricsKeysToClear with settings (the factory reset) also takes helpSort, never deviceId", () => {
   const s = sb();
-  const stored = { linkMetrics: {}, "redirectLog:2026-11-22": [], deviceId: "x", helpSort: {} };
+  const stored = { linkMetrics: {}, "redirectLog:2026-11-22": [], deviceId: "x", helpSort: {}, appearance: "dark" };
   const keys = JSON.parse(JSON.stringify(s.get(`metricsKeysToClear(${JSON.stringify(stored)}, true)`)));
-  assert.deepEqual(keys.sort(), ["helpSort", "linkMetrics", "redirectLog:2026-11-22"]);
+  assert.deepEqual(keys.sort(), ["appearance", "helpSort", "linkMetrics", "redirectLog:2026-11-22"]);
 });
 
-test("clearMetrics(true): removes metrics, log and helpSort, keeps deviceId", async () => {
+test("clearMetrics(true): removes metrics, log, helpSort and appearance, keeps deviceId", async () => {
   const s = sb();
   Object.assign(s.fake.store.local, {
     linkMetrics: {},
     "redirectLog:2026-11-22": [],
     deviceId: "id",
     helpSort: { column: "hits", dir: "desc" },
+    appearance: "dark",
   });
   await s.get("clearMetrics(true)");
   assert.deepEqual(Object.keys(s.fake.store.local), ["deviceId"]);
+});
+
+// The background's edit listener records `lastEdit` for the links the reset writes: read linkMetrics, write it back.
+// If the page's local clear came after the links were written, a slow read of that task could write the old stats
+// back. The fake fires the storage listeners on sync writes and delays the metrics read's result by a macrotask.
+test("factoryReset: clears this device first, so the edit listener's metrics write cannot bring old stats back", async () => {
+  const s = load([...COMMON, "common/redirects.ts", "common/metrics.ts", "common/redirectlog.ts"]);
+  const { fake } = s;
+  const fire = (changes) => {
+    for (const f of fake.listeners.storageChanged) f(changes, "sync");
+  };
+  const syncArea = fake.api.storage.sync;
+  const set = syncArea.set.bind(syncArea);
+  const remove = syncArea.remove.bind(syncArea);
+  syncArea.set = async (items) => {
+    const before = structuredClone(fake.store.sync);
+    await set(items);
+    fire(Object.fromEntries(Object.keys(items).map((k) => [k, { oldValue: before[k], newValue: items[k] }])));
+  };
+  syncArea.remove = async (keys) => {
+    const before = structuredClone(fake.store.sync);
+    await remove(keys);
+    fire(Object.fromEntries([keys].flat().map((k) => [k, { oldValue: before[k] }])));
+  };
+  const localArea = fake.api.storage.local;
+  const get = localArea.get.bind(localArea);
+  localArea.get = async (keys) => {
+    const result = await get(keys);
+    if (keys === "linkMetrics") await new Promise((r) => setTimeout(r, 5)); // a slow read: a stale snapshot
+    return result;
+  };
+  s.get("startMetrics()");
+  putLinks(fake, { zzmine: "https://example.com/mine" });
+  Object.assign(fake.store.local, {
+    linkMetrics: { zzmine: { count: 5, lastHit: 1, lastEdit: 1, recent: [], hourly: [], daily: [] } },
+    "redirectLog:2026-11-20": [{ at: 1 }],
+    helpSort: { column: "hits", dir: "desc" },
+    appearance: "dark",
+  });
+
+  await s.get("factoryReset()");
+  await new Promise((r) => setTimeout(r, 50)); // the metrics queue settles
+  await s.get("metricsQueue");
+
+  const metrics = fake.store.local.linkMetrics ?? {};
+  assert.equal(metrics.zzmine, undefined, "the old stats stay cleared");
+  assert.ok(metrics.gh?.lastEdit, "a re-added default only has its lastEdit");
+  assert.equal(metrics.gh?.count, 0);
+  assert.deepEqual(Object.keys(fake.store.local).sort(), ["deviceId", "linkMetrics"]);
+  assert.deepEqual(linksIn(fake), JSON.parse(JSON.stringify(s.get("SHIPPED_LINKS"))));
 });

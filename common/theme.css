@@ -1,25 +1,31 @@
 /* GoLinks design system, direction "Slate, green": one stylesheet for every extension page.
    Tokens are the custom properties on :root; the rest is base styles and a few component classes.
-   Light mode only, system fonts only. Colours live here and nowhere else: pages use classes, never
-   inline styles or colour literals. */
+   Light and dark ("Slate night"), chosen per device (Light, Dark or System; common/appearance.ts sets
+   data-theme on <html> for the explicit modes, nothing for System). Every colour token is written once as
+   light-dark(<light>, <dark>), and :root's color-scheme picks the side: both follow prefers-color-scheme by
+   default, data-theme="light" or "dark" forces one. System fonts only. Colours live here and nowhere else: pages
+   use classes, never inline styles or colour literals. */
 
 :root {
+  color-scheme: light dark;
+
   /* Colour */
-  --color-ground: #f6f7f9;
-  --color-surface: #ffffff;
-  --color-border: #e3e6eb;
-  --color-divider: #eef0f3;
-  --color-control: #d5dae1;
-  --color-text: #1a2230;
-  --color-muted: #5b6575;
-  --color-faint: #8a93a2;
-  --color-accent: #2f7360;
-  --color-accent-hover: #245a4b;
-  --color-accent-ring: rgba(47, 115, 96, 0.16);
-  --color-on-accent: #ffffff;
-  --color-danger: #b4363f;
-  --color-danger-hover: #8f2b32;
-  --color-backdrop: rgba(26, 34, 48, 0.4);
+  --color-ground: light-dark(#f6f7f9, #10141a);
+  --color-surface: light-dark(#ffffff, #171c23);
+  --color-border: light-dark(#e3e6eb, #29303b);
+  --color-divider: light-dark(#eef0f3, #1f252e);
+  --color-control: light-dark(#d5dae1, #394352);
+  --color-text: light-dark(#1a2230, #e4e8ee);
+  --color-muted: light-dark(#5b6575, #9ba5b4);
+  --color-faint: light-dark(#8a93a2, #7a8596);
+  --color-accent: light-dark(#2f7360, #5dbb9f);
+  --color-accent-hover: light-dark(#245a4b, #7fcfb6);
+  --color-accent-ring: light-dark(rgba(47, 115, 96, 0.16), rgba(93, 187, 159, 0.24));
+  --color-on-accent: light-dark(#ffffff, #0b1914);
+  --color-danger: light-dark(#b4363f, #ee8a90);
+  --color-danger-hover: light-dark(#8f2b32, #f4a6ab);
+  --color-on-danger: light-dark(#ffffff, #1d0c0e);
+  --color-backdrop: light-dark(rgba(26, 34, 48, 0.4), rgba(0, 0, 0, 0.6));
 
   /* Type */
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
@@ -43,7 +49,15 @@
   --space-6: 32px;
   --radius: 4px;
   --control-height: 34px;
-  --shadow-popup: 0 6px 20px rgba(26, 34, 48, 0.08);
+  --shadow-popup: 0 6px 20px light-dark(rgba(26, 34, 48, 0.08), rgba(0, 0, 0, 0.45));
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 /* ---- Base ---- */
@@ -353,7 +367,7 @@ th[aria-sort="descending"] .sort-btn::after {
 
 .btn-danger {
   background: var(--color-danger);
-  color: var(--color-on-accent);
+  color: var(--color-on-danger);
 }
 
 .btn-danger:hover {
@@ -380,23 +394,101 @@ th[aria-sort="descending"] .sort-btn::after {
   color: var(--color-danger);
 }
 
-/* ---- Danger zone: destructive actions at the bottom of go/help ---- */
-
-.danger-zone {
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-divider);
+/* A segmented control: toggle buttons side by side, the chosen one (aria-pressed) raised and underlined. */
+.segmented {
+  flex: none;
+  display: inline-flex;
+  border: 1px solid var(--color-control);
+  border-radius: var(--radius);
+  background: var(--color-ground);
+  overflow: hidden;
 }
 
-.danger-row {
+.segmented button {
+  height: calc(var(--control-height) - 4px);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-left: 1px solid var(--color-control);
+  background: transparent;
+  color: var(--color-muted);
+  font: var(--weight-medium) var(--text-sm) var(--font-sans);
+  cursor: pointer;
+}
+
+.segmented button:first-child {
+  border-left: 0;
+}
+
+.segmented button:hover {
+  color: var(--color-text);
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+
+.segmented button:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--color-accent-ring) inset;
+}
+
+/* ---- Settings: the bottom of go/help. One row per setting: a title and a muted description at the left,
+   the control (a segmented control or a button) at the right, a divider between rows. ---- */
+
+.settings {
+  gap: 0;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.settings .section-title {
+  margin-bottom: var(--space-1);
+}
+
+.settings-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-divider);
 }
 
-.danger-text {
-  font-size: var(--text-md);
+.settings-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.settings-row .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+.settings-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-title {
+  font-weight: var(--weight-medium);
+}
+
+.settings-desc {
+  font-size: var(--text-sm);
   color: var(--color-muted);
+}
+
+.settings .msg-status,
+.settings .msg-error {
+  margin-top: var(--space-3);
 }
 
 /* ---- Dialog: the confirmation, a modal <dialog> ---- */

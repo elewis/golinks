@@ -42,8 +42,10 @@ for (const [sig, code] of [
 }
 
 export class Firefox {
-  constructor(logPath) {
+  // extraPrefs: more prefs for this throwaway profile only (pnpm screenshot --dark).
+  constructor(logPath, extraPrefs = {}) {
     this.logPath = logPath;
+    this.extraPrefs = extraPrefs;
   }
 
   async start() {
@@ -77,7 +79,7 @@ export class Firefox {
         alwaysMatch: {
           // Pages navigate away on their own, so don't wait for load events.
           pageLoadStrategy: "none",
-          "moz:firefoxOptions": { args: ["-headless"], prefs: PREFS },
+          "moz:firefoxOptions": { args: ["-headless"], prefs: { ...PREFS, ...this.extraPrefs } },
         },
       },
     });

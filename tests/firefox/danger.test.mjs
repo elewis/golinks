@@ -1,4 +1,4 @@
-// The danger zone of go/help: "Clear metrics" and "Reset to default" (a factory
+// The Settings section of go/help: "Clear metrics" and "Reset to default" (a factory
 // reset), each behind the confirmation dialog. Driven from the harness page (op=danger).
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";

@@ -64,6 +64,7 @@ const HARNESS_RULES = [
   "deldefault",
   "sort",
   "danger",
+  "theme",
 ].map((op, i) => ({
   id: i + 1,
   priority: 100,

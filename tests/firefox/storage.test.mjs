@@ -53,9 +53,9 @@ describe("link storage changes update the rules", () => {
 });
 
 describe("default links are ordinary links", () => {
-  test("go/help has Get Started, one Links table and the Danger zone; deleting go/gg removes its redirect", async () => {
+  test("go/help has Get Started, one Links table and Settings; deleting go/gg removes its redirect", async () => {
     const r = await harness("deldefault");
-    assert.deepEqual(r.titles, ["Get Started", "Links", "Danger zone"]);
+    assert.deepEqual(r.titles, ["Get Started", "Links", "Settings"]);
     assert.equal(r.separate, false);
     const url = await finalUrl("https://go/gg", isNotFound);
     assert.ok(isNotFound(url), `go/gg -> ${url}`);

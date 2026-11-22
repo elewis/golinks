@@ -4,7 +4,7 @@ Browser extensions that provide in-browser go/ links (e.g., `go/github`) for qui
 
 Type `go/github` and get redirected to GitHub, or `go/cs/react` to search GitHub for "react". Add your own links from the toolbar, and manage them all on `go/help`.
 
-![go/help: every link with its hits, last hit and last edited, and the Danger zone](docs/images/help.png)
+![go/help: every link with its hits, last hit and last edited, and Settings](docs/images/help.png)
 
 *Screenshots are of the Firefox build with sample links.*
 
@@ -16,6 +16,7 @@ Type `go/github` and get redirected to GitHub, or `go/cs/react` to search GitHub
 - **A URL without a scheme** is saved as `https://...` (`http://...` for `localhost`).
 - **Sync**: links are stored in the browser's sync storage, one item per link, so they follow you across devices.
 - **Usage metrics, per device**: hits, last hit and last edited for every link, shown on `go/help`. A redirect log is also recorded on each device (7 days, at most 10,000 entries); there is no screen for it yet.
+- **Light, Dark or System**: every page can follow the browser's or system's light/dark setting (the default) or stay light or dark; set it on `go/help`, remembered per device.
 - **No dependencies at runtime**: native browser APIs only, no network calls.
 
 The toolbar popup and the not-found page share one add-link form:
@@ -24,7 +25,7 @@ The toolbar popup and the not-found page share one add-link form:
 
 ## The go/help page
 
-`go/help` (also bare `go/`) lists all your links in one table with their hits, last hit, last edited and a delete button, and has the add-link form as its last row. Click a column header to sort by it; the choice is remembered on that device. At the bottom, under "Danger zone":
+`go/help` (also bare `go/`) lists all your links in one table with their hits, last hit, last edited and a delete button, and has the add-link form as its last row. Click a column header to sort by it; the choice is remembered on that device. The "Settings" section at the bottom has one row per setting, a title with a short description and the control at the right. **Appearance** sets Light, Dark or System (follows the browser or system setting) for all of the extension's pages on that device. Then:
 
 - **Clear metrics** clears the hit counts and the redirect log, on this device only. It asks for confirmation first. Your links are not touched.
 - **Reset to default** (the very last thing on the page) is a full factory reset. It clears all your links and adds the shipped defaults again, on every synced device, and on this device it also clears the metrics, the redirect log and the saved sort order. It asks for confirmation first.
