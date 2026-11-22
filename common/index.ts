@@ -23,12 +23,32 @@
     return el as T;
   }
 
-  function cell(text: string): HTMLTableCellElement {
+  function cell(text: string, className = ""): HTMLTableCellElement {
     const cell = document.createElement("td");
-    const cellText = document.createTextNode(text);
-    cell.appendChild(cellText);
-    cell.style.paddingRight = "1em";
+    cell.textContent = text;
+    if (className) cell.className = className;
     return cell;
+  }
+
+  // The delete button's ×: an inline stroke icon that takes the button's colour.
+  function crossIcon(): SVGSVGElement {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    for (const [k, v] of Object.entries({
+      "aria-hidden": "true",
+      width: "14",
+      height: "14",
+      viewBox: "0 0 14 14",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "1.5",
+      "stroke-linecap": "round",
+    }))
+      svg.setAttribute(k, v);
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", "M3 3l8 8M11 3l-8 8");
+    svg.append(path);
+    return svg;
   }
 
   function headerRow(withDelete: boolean): HTMLTableRowElement {
@@ -36,8 +56,7 @@
     for (const text of ["Link", "Destination", "Hits", "Last hit", "Last edited", ...(withDelete ? [""] : [])]) {
       const th = document.createElement("th");
       th.textContent = text;
-      th.style.textAlign = "left";
-      th.style.paddingRight = "1em";
+      if (text === "Hits") th.className = "num";
       row.appendChild(th);
     }
     return row;
@@ -46,7 +65,7 @@
   // The usage cells of a link: hits, last hit, last edited.
   function statCells(golink: string): HTMLTableCellElement[] {
     const stat = metrics[golink.toLowerCase()];
-    return [cell(formatHits(stat)), cell(formatLastHit(stat)), cell(formatLastEdit(stat))];
+    return [cell(formatHits(stat), "num"), cell(formatLastHit(stat), "dim"), cell(formatLastEdit(stat), "dim")];
   }
 
   function populateTable(tableId: string, links: Links): void {
@@ -56,7 +75,7 @@
 
     Object.entries(links).forEach(([golink, destination]) => {
       const row = document.createElement("tr");
-      row.appendChild(cell(`go/${golink}`));
+      row.appendChild(cell(`go/${golink}`, "link-name"));
       row.appendChild(cell(destination));
       for (const c of statCells(golink)) row.appendChild(c);
       table.appendChild(row);
@@ -75,17 +94,18 @@
 
     Object.entries(links).forEach(([golink, destination]) => {
       const row = document.createElement("tr");
-      row.appendChild(cell(`go/${golink}`));
+      row.appendChild(cell(`go/${golink}`, "link-name"));
       row.appendChild(cell(destination));
       for (const c of statCells(golink)) row.appendChild(c);
 
       const deleteCell = document.createElement("td");
+      deleteCell.className = "icon-cell";
       const deleteBtn = document.createElement("button");
-      deleteBtn.textContent = "❌";
-      deleteBtn.style.border = "none";
-      deleteBtn.style.background = "transparent";
-      deleteBtn.style.cursor = "pointer";
+      deleteBtn.type = "button";
+      deleteBtn.className = "icon-btn";
       deleteBtn.title = "Delete link";
+      deleteBtn.setAttribute("aria-label", `Delete go/${golink}`);
+      deleteBtn.append(crossIcon());
 
       deleteBtn.addEventListener("click", async () => {
         // Names are case-insensitive: remove every case variant.

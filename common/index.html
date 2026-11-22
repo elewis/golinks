@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- <link rel="stylesheet" href="popup.css"> -->
+    <link rel="stylesheet" href="theme.css">
     <script type="text/javascript" src="api.js"></script>
     <script type="text/javascript" src="links.js"></script>
     <script type="text/javascript" src="linkform.js"></script>
@@ -10,17 +10,33 @@
     <title>GoLinks</title>
 </head>
 <body>
-    <h3>Admin links:</h3>
-    <table>
-        <tr><td>go/help</td><td>(this page)</td></tr>
-    </table>
+    <main class="page">
+        <div class="card">
+            <header class="page-header">
+                <div class="brand"><span class="brand-mark" aria-hidden="true">g/</span>GoLinks</div>
+                <div class="page-label">go/help</div>
+            </header>
+            <div class="card-body">
+                <section class="section">
+                    <h2 class="section-title">Admin links</h2>
+                    <table class="data-table">
+                        <tr><td class="link-name">go/help</td><td class="dim">(this page)</td></tr>
+                    </table>
+                </section>
 
-    <h3>User provided links:</h3>
-    <table id="user-links"></table>
-    <div id="add-link"></div>
+                <section class="section">
+                    <h2 class="section-title">User provided links</h2>
+                    <table class="data-table" id="user-links"></table>
+                    <div id="add-link"></div>
+                </section>
 
-    <h3>Default links:</h3>
-    <table id="default-links"></table>
+                <section class="section">
+                    <h2 class="section-title">Default links</h2>
+                    <table class="data-table" id="default-links"></table>
+                </section>
+            </div>
+        </div>
+    </main>
     <script type="text/javascript" src="index.js"></script>
 </body>
 </html>

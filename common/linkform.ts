@@ -85,26 +85,31 @@ function initLinkForm(
   };
 
   const form = el("form", { id: "add-link-form" });
-  const nameInput = el("input", { type: "text", id: "link-name", placeholder: "go/newlink", autocomplete: "off" });
+  const nameInput = el("input", {
+    type: "text",
+    id: "link-name",
+    class: "input input-mono",
+    placeholder: "go/newlink",
+    autocomplete: "off",
+  });
   const urlInput = el("input", {
     type: "text",
     id: "link-url",
+    class: "input",
     placeholder: "https://example.com",
     autocomplete: "off",
   });
-  const nameError = el("div", { id: "link-name-error", role: "alert" });
-  const urlError = el("div", { id: "link-url-error", role: "alert" });
-  const addBtn = el("button", { type: "submit", id: "add-btn" }, "Add");
-  const status = el("div", { id: "link-status", role: "status" });
-  const existing = el("div", { id: "link-existing" });
+  const nameError = el("div", { id: "link-name-error", class: "msg-error", role: "alert" });
+  const urlError = el("div", { id: "link-url-error", class: "msg-error", role: "alert" });
+  const addBtn = el("button", { type: "submit", id: "add-btn", class: "btn btn-primary" }, "Add");
+  const status = el("div", { id: "link-status", class: "msg-status", role: "status" });
+  const existing = el("div", { id: "link-existing", class: "note" });
   const existingList = el("ul", { id: "link-existing-list" });
   existing.append(el("div", {}, "Existing go links for this URL:"), existingList);
   existing.hidden = true;
 
-  // One inline row, as go/help always had it: name, URL, button to the right.
-  // No visible labels; the inputs carry aria-labels. Messages go below the row.
-  nameInput.setAttribute("aria-label", "Link name");
-  urlInput.setAttribute("aria-label", "Link URL");
+  // go/help: one inline row in the table, no visible labels, so the inputs carry aria-labels.
+  // Popup and not-found: stacked, with real <label>s (below).
   const cellOf = (kid: HTMLElement, colSpan = 1) => {
     const td = el("td");
     if (colSpan > 1) td.colSpan = colSpan;
@@ -112,32 +117,31 @@ function initLinkForm(
     return td;
   };
   if (table) {
+    nameInput.setAttribute("aria-label", "Link name");
+    urlInput.setAttribute("aria-label", "Link URL");
     const tfoot = el("tfoot");
     const controls = el("tr");
     const messages = el("tr");
     for (const control of [nameInput, urlInput, addBtn]) control.setAttribute("form", form.id);
-    for (const input of [nameInput, urlInput]) {
-      input.style.width = "100%";
-      input.style.boxSizing = "border-box";
-    }
-    // Same right padding as the other cells, so the boxes end where the columns' text does.
-    const name = cellOf(nameInput);
-    const url = cellOf(urlInput);
-    name.style.paddingRight = url.style.paddingRight = "1em";
+    // The table's cell padding (theme.css) is the same in the header and the form rows,
+    // so the boxes end where the columns' text does.
     // The button spans the usage and delete columns: the overwrite text is long.
-    controls.append(name, url, cellOf(addBtn, 4));
-    const rest = el("div");
+    controls.append(cellOf(nameInput), cellOf(urlInput), cellOf(addBtn, 4));
+    const rest = el("div", { class: "messages" });
     rest.append(nameError, urlError, existing, status);
     messages.append(cellOf(rest, 6));
     tfoot.append(controls, messages);
     table.append(tfoot);
     container.append(form);
   } else {
-    const tr = el("tr");
-    tr.append(cellOf(nameInput), cellOf(urlInput), cellOf(addBtn));
-    const inputRow = el("table");
-    inputRow.append(tr);
-    form.append(inputRow, nameError, urlError, existing, status);
+    // Stacked: labelled name and URL, the messages, the button.
+    const field = (label: string, input: HTMLElement, error: HTMLElement) => {
+      const wrap = el("div", { class: "field" });
+      wrap.append(el("label", { class: "label", for: input.id }, label), input, error);
+      return wrap;
+    };
+    form.className = "form";
+    form.append(field("Name", nameInput, nameError), field("URL", urlInput, urlError), existing, addBtn, status);
     container.append(form);
   }
 

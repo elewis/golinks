@@ -1,0 +1,383 @@
+/* GoLinks design system, direction "Slate, green": one stylesheet for every extension page.
+   Tokens are the custom properties on :root; the rest is base styles and a few component classes.
+   Light mode only, system fonts only. Colours live here and nowhere else: pages use classes, never
+   inline styles or colour literals. */
+
+:root {
+  /* Colour */
+  --color-ground: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-border: #e3e6eb;
+  --color-divider: #eef0f3;
+  --color-control: #d5dae1;
+  --color-text: #1a2230;
+  --color-muted: #5b6575;
+  --color-faint: #8a93a2;
+  --color-accent: #2f7360;
+  --color-accent-hover: #245a4b;
+  --color-accent-ring: rgba(47, 115, 96, 0.16);
+  --color-on-accent: #ffffff;
+  --color-danger: #b4363f;
+
+  /* Type */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-code: 12.5px;
+  --text-md: 13px;
+  --text-lg: 14px;
+  --text-xl: 16px;
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* Space and shape */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius: 4px;
+  --control-height: 34px;
+  --shadow-popup: 0 6px 20px rgba(26, 34, 48, 0.08);
+}
+
+/* ---- Base ---- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ground);
+  color: var(--color-text);
+  font: var(--weight-normal) var(--text-md) / 1.4 var(--font-sans);
+}
+
+a {
+  color: var(--color-accent);
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+/* ---- Page layout ---- */
+
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5);
+}
+
+/* The toolbar popup: a fixed width, no outer margin. */
+.page-popup {
+  width: 380px;
+  max-width: none;
+  padding: var(--space-3);
+}
+
+.page-narrow {
+  max-width: 520px;
+}
+
+/* ---- Card ---- */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.card-body {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.card-popup {
+  padding: 18px;
+  box-shadow: var(--shadow-popup);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ---- Page header: wordmark and a mono label ---- */
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: var(--weight-semibold);
+}
+
+.brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-label {
+  font: var(--text-sm) var(--font-mono);
+  color: var(--color-muted);
+}
+
+/* ---- Headings and text ---- */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.section-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.page-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+}
+
+.eyebrow {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.muted {
+  color: var(--color-muted);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* ---- Table ---- */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-md);
+}
+
+.data-table th {
+  text-align: left;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-muted);
+  padding: 0 var(--space-3) var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.data-table td {
+  padding: 9px var(--space-3) 9px 0;
+  border-bottom: 1px solid var(--color-divider);
+  vertical-align: middle;
+}
+
+.data-table th:last-child,
+.data-table td:last-child {
+  padding-right: 0;
+}
+
+.data-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The link column: mono, accent, no wrapping. */
+.data-table .link-name {
+  width: 150px;
+  font: var(--text-code) var(--font-mono);
+  color: var(--color-accent);
+  white-space: nowrap;
+}
+
+.data-table td.dim {
+  color: var(--color-muted);
+}
+
+.data-table .icon-cell {
+  width: 32px;
+  text-align: right;
+}
+
+/* The form rows at the foot of the user links table. */
+.data-table tfoot td {
+  padding: var(--space-3) var(--space-3) 0 0;
+  border-bottom: 0;
+  vertical-align: top;
+}
+
+.data-table tfoot td:last-child {
+  padding-right: 0;
+}
+
+.data-table .input {
+  width: 100%;
+}
+
+/* ---- Form controls ---- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-muted);
+}
+
+.input {
+  height: var(--control-height);
+  padding: 0 10px;
+  border: 1px solid var(--color-control);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: var(--text-md) var(--font-sans);
+}
+
+.input::placeholder {
+  color: var(--color-faint);
+}
+
+.input:focus {
+  outline: 0;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+.input-mono {
+  font: var(--text-code) var(--font-mono);
+}
+
+.btn {
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-4);
+  border: 0;
+  border-radius: var(--radius);
+  font: var(--weight-medium) var(--text-md) var(--font-sans);
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.btn-primary:hover {
+  background: var(--color-accent-hover);
+}
+
+.btn:focus-visible,
+.icon-btn:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+.icon-btn {
+  display: inline-flex;
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-faint);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  color: var(--color-danger);
+}
+
+/* ---- Messages ---- */
+
+.msg-error {
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+.msg-status {
+  font-size: var(--text-sm);
+  color: var(--color-accent);
+}
+
+.msg-error:empty,
+.msg-status:empty {
+  display: none;
+}
+
+/* The links that already point at the URL being added. */
+.note {
+  background: var(--color-ground);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius);
+  padding: 10px var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.note ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+}
+
+/* The messages row under the help page's form; its pieces stack. */
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* go/help: the form's controls live in the table, so its <form> is empty. */
+#add-link:has(> form:empty) {
+  display: none;
+}
