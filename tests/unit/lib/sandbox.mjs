@@ -77,3 +77,17 @@ export function load(files, fake = fakeApi()) {
 }
 
 export const COMMON = ["common/api.ts", "common/links.ts", "common/rules.ts"];
+
+/** Stores links the way the extension does: one sync item `link:<name>` each. */
+export function putLinks(fake, links) {
+  for (const [name, url] of Object.entries(links)) fake.store.sync[`link:${name}`] = url;
+}
+
+/** The links among the stored sync items, name -> URL. */
+export function linksIn(fake) {
+  return Object.fromEntries(
+    Object.entries(fake.store.sync)
+      .filter(([k]) => k.startsWith("link:"))
+      .map(([k, v]) => [k.slice(5), v]),
+  );
+}

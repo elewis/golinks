@@ -21,5 +21,6 @@ test("each add and delete makes exactly one storage.set", async () => {
   const result = JSON.parse(Buffer.from(url.split("#result=")[1], "hex").toString());
   assert.ok(result.ok, `harness failed: ${result.error}`);
   assert.deepEqual(result.perAction, [1, 1, 1, 1]);
-  assert.equal(result.keys, "zza,zzc");
+  const keys = result.keys.split(",");
+  assert.ok(keys.includes("zza") && keys.includes("zzc") && !keys.includes("zzb"), result.keys);
 });

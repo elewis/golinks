@@ -1,5 +1,6 @@
 // Check 5: rule updates are serialised, and link names are matched literally.
 // Storage is written from an extension page opened as a normal tab.
+import { setLinksExpr } from "../lib/links.mjs";
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { startChrome } from "./lib/fixture.mjs";
@@ -22,8 +23,7 @@ async function finalUrl(url, predicate) {
   return fx.chrome.waitUrl(page, predicate);
 }
 const isNotFound = (u) => u.startsWith(`${fx.chrome.origin}/notfound.html?name=`);
-const setLinks = (links) =>
-  fx.chrome.evaluate(ext, `chrome.storage.sync.set({ localLinks: ${JSON.stringify(links)} }).then(() => true)`);
+const setLinks = (links) => fx.chrome.evaluate(ext, setLinksExpr(links));
 const ruleCount = () => fx.chrome.evaluate(ext, `chrome.declarativeNetRequest.getDynamicRules().then((r) => r.length)`);
 async function until(fn, what) {
   for (let i = 0; i < 100; i++) {
@@ -39,12 +39,12 @@ describe("concurrent rule updates", () => {
     await fx.chrome.evaluate(
       ext,
       `Promise.all([1, 2, 3, 4, 5, 6].map((i) =>
-         chrome.storage.sync.set({ localLinks: { ["zzburst" + i]: "https://example.com/" + i } }))).then(() => true)`,
+         chrome.storage.sync.set({ ["link:zzburst" + i]: "https://example.com/" + i }))).then(() => true)`,
     );
     const url = await finalUrl("https://go/zzburst6", (u) => u.startsWith("https://example.com/"));
     assert.equal(url, "https://example.com/6");
-    // 8 default links + 1 local + help, root and not-found rules.
-    await until(async () => (await ruleCount()) === 12, "final rule count");
+    // 8 seeded defaults + 6 burst links + help, root and not-found rules.
+    await until(async () => (await ruleCount()) === 17, "final rule count");
     assert.deepEqual(errors(), []);
   });
 });
@@ -52,7 +52,7 @@ describe("concurrent rule updates", () => {
 describe("link names are matched literally", () => {
   test("regex characters in a parameterised link name", async () => {
     await setLinks({ "a.b": "https://example.com/dot?x=%s", "c++": "https://example.com/plus?x=%s" });
-    await until(async () => (await ruleCount()) === 13, "rules for the new links");
+    await until(async () => (await ruleCount()) === 5, "rules for the new links");
     assert.equal(
       await finalUrl("https://go/a.b/test", (u) => u.startsWith("https://example.com/")),
       "https://example.com/dot?x=test",

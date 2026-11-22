@@ -34,11 +34,14 @@ const DESKTOP = { width: 1280, height: 800 };
 const TALL = { width: 1280, height: 2800 };
 const POPUP_MAX = { width: 800, height: 600 };
 
-// A destination with two go links, plus one other link; the defaults add more.
+// A destination with two go links, plus one other link, and two links that were shipped as defaults
+// (the sample replaces the stored links, so they are listed here).
 const SEED_LINKS = {
   docs: "https://docs.example.com/",
   wiki: "https://docs.example.com",
   board: "https://team.example.com/board",
+  github: "https://github.com",
+  cs: "https://github.com/search?q=%s",
 };
 // Hits to show on go/help: name -> [total count, seconds ago of the last hit].
 const SEED_HITS: Record<string, [number, number]> = { docs: [42, 3600], github: [7, 86400 * 3], cs: [1, 45] };
@@ -178,6 +181,7 @@ async function shootFirefox(shots: Shot[]): Promise<void> {
 
 async function shootChrome(shots: Shot[]): Promise<void> {
   const { startChrome } = await load("tests/chrome/lib/fixture.mjs");
+  const { setLinksExpr } = await load("tests/lib/links.mjs");
   const fx = await startChrome();
   try {
     const { chrome } = fx;
@@ -195,7 +199,7 @@ async function shootChrome(shots: Shot[]): Promise<void> {
       }
     };
     await open("index.html");
-    await ev(`chrome.storage.sync.set({ localLinks: ${JSON.stringify(SEED_LINKS)} })`);
+    await ev(setLinksExpr(SEED_LINKS));
     // Wait for the background to record the edits, then add the sample hits to them.
     await ev(`(async () => {
       const get = async () => (await chrome.storage.local.get("linkMetrics")).linkMetrics;
@@ -212,7 +216,7 @@ async function shootChrome(shots: Shot[]): Promise<void> {
     for (const shot of shots) {
       if (!!shot.noLinks !== empty) {
         empty = !!shot.noLinks;
-        await ev(`chrome.storage.sync.set({ localLinks: ${JSON.stringify(empty ? {} : SEED_LINKS)} })`);
+        await ev(setLinksExpr(empty ? {} : SEED_LINKS));
         await new Promise((r) => setTimeout(r, 400));
       }
       await chrome.setViewport(page, (shot.tall ? TALL : DESKTOP).width, (shot.tall ? TALL : DESKTOP).height);

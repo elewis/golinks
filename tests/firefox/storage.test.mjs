@@ -51,3 +51,13 @@ describe("link storage changes update the rules", () => {
     assert.ok(isNotFound(url), `go/zzmine -> ${url}`);
   });
 });
+
+describe("default links are ordinary links", () => {
+  test("go/help has Get Started and one Links table; deleting go/gg removes its redirect", async () => {
+    const r = await harness("deldefault");
+    assert.deepEqual(r.titles, ["Get Started", "Links"]);
+    assert.equal(r.separate, false);
+    const url = await finalUrl("https://go/gg", isNotFound);
+    assert.ok(isNotFound(url), `go/gg -> ${url}`);
+  });
+});

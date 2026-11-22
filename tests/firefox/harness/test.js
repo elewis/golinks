@@ -32,6 +32,21 @@ const hasRule = async (name) =>
     JSON.stringify(r.condition).includes(`go/${name}`),
   );
 
+// Links are one sync item each, `link:<name>`.
+const storedLinks = async () =>
+  Object.fromEntries(
+    Object.entries(await browser.storage.sync.get(null))
+      .filter(([k]) => k.startsWith("link:"))
+      .map(([k, v]) => [k.slice(5), v]),
+  );
+const linkItems = (links) => Object.fromEntries(Object.entries(links).map(([n, u]) => [`link:${n}`, u]));
+// Makes the stored links exactly `links`.
+async function setLinks(links) {
+  const gone = Object.keys(await storedLinks()).filter((n) => !(n in links));
+  if (gone.length) await browser.storage.sync.remove(gone.map((n) => `link:${n}`));
+  await browser.storage.sync.set(linkItems(links));
+}
+
 const Buffer_hex = (str) => [...new TextEncoder().encode(str)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
 async function loadForm() {
@@ -49,23 +64,33 @@ async function run(cmd) {
     doc.getElementById("link-url").value = LINK.url;
     doc.getElementById("add-btn").click();
     const stored = await waitFor(async () => {
-      const { localLinks } = await browser.storage.sync.get("localLinks");
-      return localLinks && localLinks[LINK.name] === LINK.url;
+      return (await storedLinks())[LINK.name] === LINK.url;
     }, "link in storage");
     await waitFor(() => hasRule(LINK.name), "rule for new link");
     return { stored };
   }
   if (cmd.op === "del") {
     const doc = await loadForm();
-    const row = [...doc.querySelectorAll("#user-links tr")].find((r) => r.firstChild.textContent === `go/${LINK.name}`);
+    const row = [...doc.querySelectorAll("#links tr")].find((r) => r.firstChild.textContent === `go/${LINK.name}`);
     if (!row) throw new Error(`no row for go/${LINK.name}`);
     row.querySelector("button").click();
     await waitFor(async () => {
-      const { localLinks } = await browser.storage.sync.get("localLinks");
-      return !localLinks || !(LINK.name in localLinks);
+      return !(LINK.name in (await storedLinks()));
     }, "link removed from storage");
     await waitFor(async () => !(await hasRule(LINK.name)), "rule removed");
     return {};
+  }
+  if (cmd.op === "deldefault") {
+    // A shipped default is an ordinary link: it has a row and a delete button, and no separate table.
+    const doc = await loadForm();
+    const titles = [...doc.querySelectorAll("h2.section-title")].map((h) => h.textContent);
+    const separate = doc.getElementById("default-links") !== null;
+    await waitFor(() => doc.querySelector("#links tr td"), "link rows");
+    const row = [...doc.querySelectorAll("#links tr")].find((r) => r.firstChild.textContent === "go/gg");
+    if (!row) throw new Error("no row for go/gg");
+    row.querySelector("button").click();
+    await waitFor(async () => !(await hasRule("gg")), "rule for go/gg removed");
+    return { titles, separate };
   }
   if (cmd.op === "writes") {
     const doc = await loadForm();
@@ -73,6 +98,8 @@ async function run(cmd) {
     let sets = 0;
     const orig = win.browser.storage.sync.set.bind(win.browser.storage.sync);
     win.browser.storage.sync.set = (v) => (sets++, orig(v));
+    const origRemove = win.browser.storage.sync.remove.bind(win.browser.storage.sync);
+    win.browser.storage.sync.remove = (k) => (sets++, origRemove(k)); // a delete is one remove
     const perAction = [];
     for (const n of ["zza", "zzb", "zzc"]) {
       const before = sets;
@@ -84,33 +111,30 @@ async function run(cmd) {
       perAction.push(sets - before);
     }
     const before = sets;
-    [...doc.querySelectorAll("#user-links tr")]
+    [...doc.querySelectorAll("#links tr")]
       .find((r) => r.firstChild.textContent === "go/zzb")
       .querySelector("button")
       .click();
     await waitFor(() => sets > before, "storage.set for delete");
     await sleep(300);
     perAction.push(sets - before);
-    const { localLinks } = await browser.storage.sync.get("localLinks");
     return {
       perAction,
-      keys: Object.keys(localLinks || {})
+      keys: Object.keys(await storedLinks())
         .sort()
         .join(","),
     };
   }
   if (cmd.op === "burst") {
     await Promise.all(
-      [1, 2, 3, 4, 5, 6].map((i) =>
-        browser.storage.sync.set({ localLinks: { [`zzburst${i}`]: `https://example.com/${i}` } }),
-      ),
+      [1, 2, 3, 4, 5, 6].map((i) => browser.storage.sync.set({ [`link:zzburst${i}`]: `https://example.com/${i}` })),
     );
     await waitFor(() => hasRule("zzburst6"), "rule for the last write");
     return {};
   }
   if (cmd.op === "addlink") {
     const out = {};
-    const local = async () => (await browser.storage.sync.get("localLinks")).localLinks || {};
+    const local = storedLinks;
     const open = async (src) => {
       const frame = document.createElement("iframe");
       frame.src = src;
@@ -160,7 +184,7 @@ async function run(cmd) {
     await waitFor(() => pop.id("add-btn").textContent.startsWith("Overwrite"), "confirm button");
     out.confirmLabel = pop.id("add-btn").textContent;
     await sleep(300);
-    out.wroteBeforeConfirm = "gh" in (await local());
+    out.wroteBeforeConfirm = (await local()).gh !== "https://github.com";
     pop.id("add-btn").click();
     await waitFor(async () => (await local()).gh === "https://example.com/mine", "overwrite stored");
     // go/help has the same form.
@@ -168,7 +192,7 @@ async function run(cmd) {
     out.helpForms = help.doc.querySelectorAll("#add-link #add-link-form").length;
     // The form's boxes sit under the Link and Destination columns, as wide as their content box.
     const align = () => {
-      const [th1, th2] = help.doc.querySelectorAll("#user-links th");
+      const [th1, th2] = help.doc.querySelectorAll("#links th");
       const box = (th) => {
         const r = th.getBoundingClientRect();
         const s = help.doc.defaultView.getComputedStyle(th);
@@ -187,17 +211,12 @@ async function run(cmd) {
     out.helpAligned = align();
     // A very long destination widens the column; the box follows.
     const long = `https://example.com/${"x".repeat(300)}`;
-    await browser.storage.sync.set({ localLinks: { ...(await local()), zzlong: long } });
-    await waitFor(
-      () => [...help.doc.querySelectorAll("#user-links td")].some((td) => td.textContent === long),
-      "long row",
-    );
+    await browser.storage.sync.set({ "link:zzlong": long });
+    await waitFor(() => [...help.doc.querySelectorAll("#links td")].some((td) => td.textContent === long), "long row");
     out.helpAlignedLong = align();
-    await browser.storage.sync.set({
-      localLinks: Object.fromEntries(Object.entries(await local()).filter(([k]) => k !== "zzlong")),
-    });
+    await browser.storage.sync.remove("link:zzlong");
     await waitFor(
-      () => ![...help.doc.querySelectorAll("#user-links td")].some((td) => td.textContent === long),
+      () => ![...help.doc.querySelectorAll("#links td")].some((td) => td.textContent === long),
       "long row gone",
     );
     // The confirm works from go/help's own form (its controls sit outside the <form>, tied by form=).
@@ -215,7 +234,7 @@ async function run(cmd) {
   }
   if (cmd.op === "seed") {
     const seed = await (await fetch("seed.json")).json();
-    await browser.storage.sync.set({ localLinks: seed.localLinks });
+    await setLinks(seed.localLinks);
     for (const name of Object.keys(seed.localLinks)) await waitFor(() => hasRule(name), `rule for ${name}`);
     if (seed.hits) {
       // Wait for the background to record the edits, then add the sample hits to them.
@@ -263,11 +282,9 @@ async function run(cmd) {
     };
   }
   if (cmd.op === "regex") {
-    await browser.storage.sync.set({
-      localLinks: { "a.b": "https://example.com/dot?x=%s", "c++": "https://example.com/plus?x=%s" },
-    });
-    // 8 default links + 2 local + help, root and not-found rules.
-    await waitFor(async () => (await browser.declarativeNetRequest.getDynamicRules()).length === 13, "13 rules");
+    await setLinks({ "a.b": "https://example.com/dot?x=%s", "c++": "https://example.com/plus?x=%s" });
+    // 2 links (the seeded defaults are replaced) + help, root and not-found rules.
+    await waitFor(async () => (await browser.declarativeNetRequest.getDynamicRules()).length === 5, "5 rules");
     return {};
   }
   if (cmd.op === "log") {
@@ -300,12 +317,12 @@ async function run(cmd) {
   }
   if (cmd.op === "metricsedit") {
     // Edits through storage.sync, as the form (or another device) does.
-    await browser.storage.sync.set({ localLinks: { zzedit: "https://example.com/one" } });
+    await browser.storage.sync.set({ "link:zzedit": "https://example.com/one" });
     await waitFor(async () => (await browser.storage.local.get("linkMetrics")).linkMetrics?.zzedit?.lastEdit, "edit");
     const first = (await browser.storage.local.get("linkMetrics")).linkMetrics.zzedit.lastEdit;
     // The same destination again is no edit; a deletion is none either.
-    await browser.storage.sync.set({ localLinks: { zzedit: "https://example.com/one" } });
-    await browser.storage.sync.set({ localLinks: {} });
+    await browser.storage.sync.set({ "link:zzedit": "https://example.com/one" });
+    await browser.storage.sync.remove("link:zzedit");
     await sleep(500);
     const { linkMetrics } = await browser.storage.local.get("linkMetrics");
     return { first, stat: linkMetrics.zzedit };
@@ -314,7 +331,7 @@ async function run(cmd) {
     const doc = await loadForm();
     const rows = () =>
       Object.fromEntries(
-        [...doc.querySelectorAll("#user-links tr, #default-links tr")].map((r) => [
+        [...doc.querySelectorAll("#links tr")].map((r) => [
           r.firstChild.textContent,
           [...r.querySelectorAll("td")].map((c) => c.textContent),
         ]),

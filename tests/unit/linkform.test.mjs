@@ -164,27 +164,6 @@ test("linksForUrl: a path keeps its meaning (only one trailing slash is ignored)
   assert.deepEqual(plain(sb().get(`linksForUrl(${JSON.stringify(links)}, "https://x.test/a")`)), ["a", "b"]);
 });
 
-test("readLinks: merges stored defaults and local links without writing storage", async () => {
-  const { fake, get } = sb();
-  await get("getLinks()"); // what the background does at startup: stores the defaults
-  fake.store.sync.localLinks = { gh: "https://mine", extra: "https://e" };
-  const sets = [];
-  const set = fake.api.storage.sync.set;
-  fake.api.storage.sync.set = (v) => (sets.push(v), set(v));
-  const links = plain(await get("readLinks()"));
-  assert.equal(links.gh, "https://mine");
-  assert.equal(links.extra, "https://e");
-  assert.equal(links.github, "https://github.com");
-  assert.deepEqual(sets, []);
-});
-
-test("readLinks: before the defaults are stored it falls back to getLinks()", async () => {
-  const { fake, get } = sb();
-  const links = plain(await get("readLinks()"));
-  assert.equal(links.github, "https://github.com");
-  assert.ok(fake.store.sync.defaultLinks);
-});
-
 test("checkLink: the name is saved lowercase", () => {
   assert.equal(check("Docs", "https://x.test").name, "docs");
   assert.equal(check("go/DOCS", "https://x.test").name, "docs");
@@ -201,14 +180,14 @@ test("checkLink: HELP is reserved in any case", () => {
   assert.ok(check("HELP", "https://x.test").errors.name);
 });
 
-test("saveLink: saves lowercase and removes every other case variant of the name", async () => {
+test("saveLink: writes only its own link:<name> item, lowercase; an overwrite is the same key", async () => {
   const { fake, get } = sb();
-  fake.store.sync.localLinks = { GH: "https://a", Gh: "https://b", keep: "https://k" };
+  fake.store.sync["link:keep"] = "https://k";
+  const sets = [];
+  const set = fake.api.storage.sync.set;
+  fake.api.storage.sync.set = (v) => (sets.push(plain(v)), set(v));
   await get('saveLink("GH", "https://new")');
-  assert.deepEqual(plain(fake.store.sync.localLinks), { keep: "https://k", gh: "https://new" });
-});
-
-test("removeLinkName: removes every case variant of a name and nothing else", () => {
-  const out = plain(sb().get('removeLinkName({ GH: "1", gh: "2", Gha: "3" }, "gH")'));
-  assert.deepEqual(out, { Gha: "3" });
+  await get('saveLink("gh", "https://newer")');
+  assert.deepEqual(sets, [{ "link:gh": "https://new" }, { "link:gh": "https://newer" }]);
+  assert.deepEqual(plain(fake.store.sync), { "link:keep": "https://k", "link:gh": "https://newer" });
 });

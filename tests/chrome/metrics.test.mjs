@@ -28,7 +28,11 @@ async function until(fn, what) {
 
 describe("link usage metrics", () => {
   test("nothing is recorded before any hit", async () => {
-    assert.deepEqual(await metrics(), {});
+    // Seeding the default links is an edit (lastEdit), not a hit.
+    for (const [name, stat] of Object.entries(await metrics())) {
+      assert.equal(stat.count, 0, name);
+      assert.equal(stat.lastHit, undefined, name);
+    }
   });
 
   test("https://go/github counts one hit with lastHit set", async () => {
@@ -72,14 +76,13 @@ describe("link usage metrics", () => {
   });
 
   test("adding a link sets lastEdit; the same destination and a deletion do not", async () => {
-    const set = (v) =>
-      fx.chrome.evaluate(ext, `chrome.storage.sync.set({ localLinks: ${JSON.stringify(v)} }).then(() => true)`);
-    await set({ zzedit: "https://example.com/one" });
+    const set = (v) => fx.chrome.evaluate(ext, `chrome.storage.sync.set({ "link:zzedit": ${JSON.stringify(v)} })`);
+    await set("https://example.com/one");
     await until(async () => (await metrics()).zzedit?.lastEdit, "lastEdit");
     const first = (await metrics()).zzedit.lastEdit;
     assert.ok(Math.abs(first - Date.now() / 1000) < 120);
-    await set({ zzedit: "https://example.com/one" });
-    await set({});
+    await set("https://example.com/one");
+    await fx.chrome.evaluate(ext, `chrome.storage.sync.remove("link:zzedit")`);
     await sleep(500);
     const stat = (await metrics()).zzedit;
     assert.equal(stat.lastEdit, first);
@@ -88,19 +91,16 @@ describe("link usage metrics", () => {
 
   test("go/help shows hits, last hit and last edited", async () => {
     await fx.chrome.navigate(ext, `${fx.chrome.origin}/index.html`);
-    await until(
-      () => fx.chrome.evaluate(ext, `document.querySelectorAll("#default-links tr").length > 0`),
-      "the help table",
-    );
+    await until(() => fx.chrome.evaluate(ext, `document.querySelectorAll("#links tr").length > 0`), "the help table");
     const rows = await fx.chrome.evaluate(
       ext,
-      `Object.fromEntries([...document.querySelectorAll("#user-links tr, #default-links tr")].map((r) => [r.firstChild.textContent, [...r.querySelectorAll("td")].map((c) => c.textContent)]))`,
+      `Object.fromEntries([...document.querySelectorAll("#links tr")].map((r) => [r.firstChild.textContent, [...r.querySelectorAll("td")].map((c) => c.textContent)]))`,
     );
     const [name, , hits, lastHit, lastEdit] = rows["go/github"];
     assert.equal(name, "go/github");
     assert.equal(hits, "1");
     assert.match(lastHit, /^\d{2}\/\d{2}\/\d{4},? \d{2}:\d{2}:\d{2}$/);
-    assert.equal(lastEdit, "—");
+    assert.match(lastEdit, /^\d{2}\/\d{2}\/\d{4},? \d{2}:\d{2}:\d{2}$/, "seeded, so it has a last edit");
     assert.equal(rows["go/gg"][2], "0");
     assert.equal(rows["go/gg"][3], "never");
   });

@@ -95,10 +95,10 @@ function hitName(fact: RedirectFact, links: Links, extensionBase: string): strin
 }
 
 // The names whose destination was added or changed from `before` to `after`
-// (the stored localLinks, any key case). Removed links are not edits.
+// (links as `linkChanges()` builds them). Removed links are not edits.
 function editedNames(before: Links | undefined, after: Links | undefined): string[] {
-  const old = mergeLinks({}, before ?? {});
-  const now = mergeLinks({}, after ?? {});
+  const old = lowercaseLinks(before ?? {});
+  const now = lowercaseLinks(after ?? {});
   return Object.keys(now).filter((name) => old[name] !== now[name]);
 }
 
@@ -164,7 +164,7 @@ function getDeviceId(): Promise<string> {
 // Register the background listeners (call it synchronously at the top level,
 // so a Chrome service worker can be woken by the events):
 // - a go/ redirect fact (see redirects.ts) from a saved name is a hit,
-// - a changed destination in sync localLinks is an edit.
+// - a changed destination in a sync `link:*` item is an edit.
 function startMetrics(): void {
   getDeviceId().catch((e) => console.error("GoLinks: creating the device id failed:", e));
 
@@ -177,8 +177,9 @@ function startMetrics(): void {
   });
 
   api.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace !== "sync" || !changes.localLinks) return;
-    const names = editedNames(changes.localLinks.oldValue as Links | undefined, changes.localLinks.newValue as Links);
+    const changed = namespace === "sync" ? linkChanges(changes) : null;
+    if (!changed) return;
+    const names = editedNames(changed.before, changed.after);
     if (names.length === 0) return;
     const now = Math.floor(Date.now() / 1000);
     updateMetrics((metrics) => names.reduce((m, name) => withEdit(m, name, now), metrics));

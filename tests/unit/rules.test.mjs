@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { COMMON, load } from "./lib/sandbox.mjs";
+import { COMMON, linksIn, load, putLinks } from "./lib/sandbox.mjs";
 
 const sb = () => load(COMMON);
 
@@ -132,16 +132,6 @@ test("updateRulesWithLinks removes the previous rules", async () => {
   assert.equal(fake.rules()[0].condition.regexFilter, "^https?://go/b$");
 });
 
-test("getLinks: defaults, with localLinks overriding them; defaults are stored", async () => {
-  const { fake, get } = sb();
-  fake.store.sync.localLinks = { gh: "https://mine", extra: "https://e" };
-  const links = await get("getLinks()");
-  assert.equal(links.gh, "https://mine");
-  assert.equal(links.extra, "https://e");
-  assert.equal(links.github, "https://github.com");
-  assert.ok(fake.store.sync.defaultLinks.cs);
-});
-
 const countSets = (fake) => {
   const sets = [];
   const set = fake.api.storage.sync.set;
@@ -149,30 +139,174 @@ const countSets = (fake) => {
   return sets;
 };
 
-test("getLinks: stored defaults with keys in another order (Chrome sorts them) are not rewritten", async () => {
+const SHIPPED = ["github", "gh", "cs", "gg", "yt", "mail", "gmail", "gcal"];
+const sorted = (o) => Object.keys(o).sort();
+const seededNames = (fake) =>
+  Object.keys(fake.store.sync)
+    .filter((k) => k.startsWith("seeded:"))
+    .map((k) => k.slice(7))
+    .sort();
+
+test("seeding: a fresh install gets every shipped default as its own link:<name> item, in one write", async () => {
+  const { fake, get } = sb();
+  const sets = countSets(fake);
+  const links = JSON.parse(JSON.stringify(await get("getLinks()")));
+  assert.deepEqual(sorted(links), [...SHIPPED].sort());
+  assert.equal(links.cs, "https://github.com/search?q=%s");
+  assert.deepEqual(sorted(linksIn(fake)), [...SHIPPED].sort());
+  assert.deepEqual(seededNames(fake), [...SHIPPED].sort());
+  assert.equal(fake.store.sync["link:gh"], "https://github.com");
+  assert.equal("localLinks" in fake.store.sync || "defaultLinks" in fake.store.sync, false);
+  assert.equal(sets.length, 1);
+});
+
+test("seeding: idempotent, a second run writes nothing", async () => {
   const { fake, get } = sb();
   await get("getLinks()");
-  const sorted = Object.fromEntries(
-    Object.entries(fake.store.sync.defaultLinks).sort(([a], [b]) => a.localeCompare(b)),
-  );
-  assert.notDeepEqual(Object.keys(sorted), Object.keys(fake.store.sync.defaultLinks));
-  fake.store.sync.defaultLinks = sorted;
   const sets = countSets(fake);
   await get("getLinks()");
+  await get("seedDefaults()");
   assert.deepEqual(sets, []);
 });
 
-test("getLinks: stored defaults that really differ are rewritten", async () => {
+test("seeding: a deleted default stays deleted (its seeded: key stays)", async () => {
   const { fake, get } = sb();
   await get("getLinks()");
-  fake.store.sync.defaultLinks.gh = "https://old.test";
+  delete fake.store.sync["link:gh"];
+  const links = JSON.parse(JSON.stringify(await get("getLinks()")));
+  assert.equal("gh" in links, false);
+  assert.equal("link:gh" in fake.store.sync, false);
+  assert.equal(fake.store.sync["seeded:gh"], true);
+});
+
+test("seeding: only the defaults' own keys are written, other items are never touched", async () => {
+  const { fake, get } = sb();
+  fake.store.sync["link:mine"] = "https://m";
   const sets = countSets(fake);
   await get("getLinks()");
   assert.equal(sets.length, 1);
-  assert.equal(sets[0].defaultLinks.gh, "https://github.com");
-  fake.store.sync.defaultLinks.extra = "https://x.test"; // an extra key is a difference too
+  assert.deepEqual(sorted(sets[0]), [...SHIPPED.flatMap((n) => [`link:${n}`, `seeded:${n}`])].sort());
+  assert.equal(fake.store.sync["link:mine"], "https://m");
+});
+
+test("seeding: the user's link of the same name wins, and the default is marked seeded", async () => {
+  const { fake, get } = sb();
+  putLinks(fake, { gh: "https://mine", extra: "https://e" });
+  const links = JSON.parse(JSON.stringify(await get("getLinks()")));
+  assert.equal(links.gh, "https://mine");
+  assert.equal(links.extra, "https://e");
+  assert.equal(links.github, "https://github.com");
+  assert.equal(fake.store.sync["seeded:gh"], true);
+});
+
+test("seeding: partly seeded, only the defaults without a seeded: key are added", async () => {
+  const { fake, get } = sb();
+  fake.store.sync["seeded:github"] = true; // seeded earlier and deleted by the user
   await get("getLinks()");
-  assert.equal(sets.length, 2);
+  assert.equal("link:github" in fake.store.sync, false);
+  assert.equal(fake.store.sync["link:gg"], "https://google.com");
+});
+
+test("seeding: a default shipped in a later version is added once", async () => {
+  const { fake, get } = sb();
+  await get("getLinks()");
+  delete fake.store.sync["seeded:gcal"]; // as if gcal were new in this version
+  delete fake.store.sync["link:gcal"];
+  await get("getLinks()");
+  assert.equal(fake.store.sync["link:gcal"], "https://calendar.google.com");
+  delete fake.store.sync["link:gcal"]; // the user deletes it again
+  await get("getLinks()");
+  assert.equal("link:gcal" in fake.store.sync, false);
+});
+
+test("seeding: concurrent calls seed once", async () => {
+  const { fake, get } = sb();
+  const sets = countSets(fake);
+  await Promise.all([get("getLinks()"), get("getLinks()"), get("seedDefaults()"), get("getLinks()")]);
+  assert.equal(sets.length, 1);
+  assert.equal(sorted(linksIn(fake)).length, SHIPPED.length);
+});
+
+test("seeding: a failed write does not block the next seed", async () => {
+  const { fake, get } = sb();
+  const set = fake.api.storage.sync.set;
+  fake.api.storage.sync.set = async () => {
+    throw new Error("boom");
+  };
+  await assert.rejects(get("seedDefaults()"), /boom/);
+  fake.api.storage.sync.set = set;
+  await get("seedDefaults()");
+  assert.equal(sorted(linksIn(fake)).length, SHIPPED.length);
+});
+
+test("migration: a legacy localLinks item becomes link:<name> items and is removed with defaultLinks", async () => {
+  const { fake, get } = sb();
+  fake.store.sync.localLinks = { docs: "https://d", gh: "https://mine" };
+  fake.store.sync.defaultLinks = { github: "https://github.com" }; // the old record
+  await get("getLinks()");
+  assert.equal("localLinks" in fake.store.sync, false);
+  assert.equal("defaultLinks" in fake.store.sync, false);
+  assert.equal(fake.store.sync["link:docs"], "https://d");
+  assert.equal(fake.store.sync["link:gh"], "https://mine"); // the user's link wins over the default
+  // The old record does not count as seeded: the other defaults are seeded once.
+  assert.equal(fake.store.sync["link:github"], "https://github.com");
+  assert.deepEqual(seededNames(fake), [...SHIPPED].sort());
+});
+
+test("migration: an existing link:<name> item wins over the legacy entry", async () => {
+  const { fake, get } = sb();
+  fake.store.sync.localLinks = { docs: "https://legacy" };
+  fake.store.sync["link:docs"] = "https://new";
+  await get("getLinks()");
+  assert.equal(fake.store.sync["link:docs"], "https://new");
+  assert.equal("localLinks" in fake.store.sync, false);
+});
+
+test("migration: of legacy keys that differ only in case the exact lowercase one wins, else the last", async () => {
+  const { fake, get } = sb();
+  fake.store.sync.localLinks = {
+    Docs: "https://upper",
+    docs: "https://lower",
+    Wiki: "https://one",
+    WIKI: "https://two",
+  };
+  await get("getLinks()");
+  assert.equal(fake.store.sync["link:docs"], "https://lower");
+  assert.equal(fake.store.sync["link:wiki"], "https://two");
+  assert.equal(Object.keys(fake.store.sync).filter((k) => k.toLowerCase() !== k && k !== "localLinks").length, 0);
+});
+
+test("migration: idempotent, a second run (or another device) writes nothing more", async () => {
+  const { fake, get } = sb();
+  fake.store.sync.localLinks = { docs: "https://d" };
+  await get("getLinks()");
+  const snapshot = JSON.stringify(fake.store.sync);
+  const sets = countSets(fake);
+  await get("getLinks()");
+  assert.deepEqual(sets, []);
+  assert.equal(JSON.stringify(fake.store.sync), snapshot);
+});
+
+test("migration: one storage.set for the new items, then the legacy items are removed", async () => {
+  const { fake, get } = sb();
+  fake.store.sync.localLinks = { docs: "https://d" };
+  const sets = countSets(fake);
+  const removes = [];
+  const remove = fake.api.storage.sync.remove;
+  fake.api.storage.sync.remove = (k) => (removes.push(k), remove(k));
+  await get("getLinks()");
+  assert.equal(sets.length, 1);
+  assert.equal(JSON.stringify(removes), '[["localLinks"]]');
+});
+
+test("migration: an old-version device writing localLinks again is migrated on the next start", async () => {
+  const { fake, get } = sb();
+  await get("getLinks()");
+  delete fake.store.sync["link:docs"];
+  fake.store.sync.localLinks = { docs: "https://again" };
+  await get("getLinks()");
+  assert.equal(fake.store.sync["link:docs"], "https://again");
+  assert.equal("localLinks" in fake.store.sync, false);
 });
 
 test("get_rule: the case-insensitive match is explicit, for static and %s rules", () => {
@@ -198,34 +332,26 @@ test("get_rule: a %s parameter keeps its case (the substitution does not touch i
   assert.equal(m[1], "FooBar");
 });
 
-test("mergeLinks: keys are lowercased, local over default", () => {
+test("lowercaseLinks: of two stored keys that differ only in case the exact lowercase one wins, else the last", () => {
   const { get } = sb();
-  const out = JSON.parse(
-    JSON.stringify(get('mergeLinks({ gh: "https://d", Cs: "https://c" }, { GH: "https://mine" })')),
-  );
-  assert.deepEqual(out, { gh: "https://mine", cs: "https://c" });
-});
-
-test("mergeLinks: of two stored local keys that differ only in case the exact lowercase one wins, else the last", () => {
-  const { get } = sb();
-  const m = (locals) => JSON.parse(JSON.stringify(get(`mergeLinks({}, ${JSON.stringify(locals)})`)));
+  const m = (links) => JSON.parse(JSON.stringify(get(`lowercaseLinks(${JSON.stringify(links)})`)));
+  assert.deepEqual(m({ Cs: "https://c" }), { cs: "https://c" });
   assert.deepEqual(m({ gh: "https://lower", GH: "https://upper" }), { gh: "https://lower" });
   assert.deepEqual(m({ GH: "https://upper", gh: "https://lower" }), { gh: "https://lower" });
   assert.deepEqual(m({ Gh: "https://one", GH: "https://two" }), { gh: "https://two" });
 });
 
-test("getLinks and readLinks: a stored GH overrides the default gh, once, and storage is not rewritten", async () => {
+test("readLinks: reads link:* items only, never seeds or writes", async () => {
   const { fake, get } = sb();
-  await get("getLinks()");
-  fake.store.sync.localLinks = { GH: "https://mine" };
   const sets = countSets(fake);
-  for (const expr of ["getLinks()", "readLinks()"]) {
-    const links = JSON.parse(JSON.stringify(await get(expr)));
-    assert.equal(links.gh, "https://mine");
-    assert.equal("GH" in links, false);
-  }
+  assert.deepEqual(JSON.parse(JSON.stringify(await get("readLinks()"))), {});
+  fake.store.sync["link:x"] = "https://x";
+  fake.store.sync["link:GH"] = "https://mine"; // a key in another case reads as the lowercase name
+  fake.store.sync["seeded:y"] = true;
+  fake.store.sync.localLinks = { z: "https://z" };
+  fake.store.sync.other = "https://o";
+  assert.deepEqual(JSON.parse(JSON.stringify(await get("readLinks()"))), { x: "https://x", gh: "https://mine" });
   assert.deepEqual(sets, []);
-  assert.deepEqual(fake.store.sync.localLinks, { GH: "https://mine" });
 });
 
 test("refreshRules: one rule per lowercased name, so no two rules match the same URL", async () => {
@@ -286,14 +412,12 @@ test("refreshRules: a failed update does not block the next one", async () => {
   assert.ok(logs.some(([l]) => l === "error"));
 });
 
-test("the storage listener refreshes rules only for sync changes to the link keys", async () => {
+test("the storage listener refreshes rules only for sync changes to link:* items", async () => {
   const { fake } = sb();
   const [listener] = fake.listeners.storageChanged;
-  await listener({ localLinks: {} }, "local");
-  await listener({ other: {} }, "sync");
+  await listener({ "link:x": {} }, "local");
+  await listener({ other: {}, "seeded:x": {}, localLinks: {} }, "sync");
   assert.equal(fake.calls.length, 0);
-  await listener({ localLinks: {} }, "sync");
+  await listener({ "link:x": {} }, "sync");
   assert.equal(fake.calls.length, 1);
-  await listener({ defaultLinks: {} }, "sync");
-  assert.equal(fake.calls.length, 2);
 });

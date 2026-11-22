@@ -1,20 +1,9 @@
 (async () => {
-  const result: { defaultLinks?: Links; localLinks?: Links } = await api.storage.sync.get([
-    "defaultLinks",
-    "localLinks",
-  ]);
-
-  const defaultLinks = result.defaultLinks || {};
-  const localLinks = result.localLinks || {};
+  const links = await readLinks();
   // Usage metrics of this device (storage.local, see metrics.ts), by lowercase name.
   const stored: { linkMetrics?: LinkMetrics } = await api.storage.local.get("linkMetrics");
   let metrics: LinkMetrics = stored.linkMetrics || {};
-  let shownLocal = localLinks;
-
-  async function getLocalLinks(): Promise<Links> {
-    const { localLinks }: { localLinks?: Links } = await api.storage.sync.get("localLinks");
-    return { ...(localLinks || {}) };
-  }
+  let shownLinks = links;
 
   // An element the page is known to have (see index.html).
   function byId<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -51,9 +40,9 @@
     return svg;
   }
 
-  function headerRow(withDelete: boolean): HTMLTableRowElement {
+  function headerRow(): HTMLTableRowElement {
     const row = document.createElement("tr");
-    for (const text of ["Link", "Destination", "Hits", "Last hit", "Last edited", ...(withDelete ? [""] : [])]) {
+    for (const text of ["Link", "Destination", "Hits", "Last hit", "Last edited", ""]) {
       const th = document.createElement("th");
       th.textContent = text;
       if (text === "Hits") th.className = "num";
@@ -68,29 +57,15 @@
     return [cell(formatHits(stat), "num"), cell(formatLastHit(stat), "dim"), cell(formatLastEdit(stat), "dim")];
   }
 
-  function populateTable(tableId: string, links: Links): void {
-    const table = byId(tableId);
-    table.innerHTML = "";
-    table.appendChild(headerRow(false));
+  const linksTable = byId<HTMLTableElement>("links");
+  const linksBody = linksTable.createTBody();
 
-    Object.entries(links).forEach(([golink, destination]) => {
-      const row = document.createElement("tr");
-      row.appendChild(cell(`go/${golink}`, "link-name"));
-      row.appendChild(cell(destination));
-      for (const c of statCells(golink)) row.appendChild(c);
-      table.appendChild(row);
-    });
-  }
-
-  const userTable = byId<HTMLTableElement>("user-links");
-  const userBody = userTable.createTBody();
-
-  function populateUserLinks(links: Links): void {
-    shownLocal = links;
+  function populateLinks(links: Links): void {
+    shownLinks = links;
     // Only the body is rebuilt: the form's rows (tfoot) keep their text, focus and listeners.
-    const table = userBody;
+    const table = linksBody;
     table.innerHTML = "";
-    table.appendChild(headerRow(true));
+    table.appendChild(headerRow());
 
     Object.entries(links).forEach(([golink, destination]) => {
       const row = document.createElement("tr");
@@ -108,9 +83,7 @@
       deleteBtn.append(crossIcon());
 
       deleteBtn.addEventListener("click", async () => {
-        // Names are case-insensitive: remove every case variant.
-        const current = await getLocalLinks();
-        await api.storage.sync.set({ localLinks: removeLinkName(current, golink) });
+        await api.storage.sync.remove(linkKey(golink));
       });
 
       deleteCell.appendChild(deleteBtn);
@@ -119,21 +92,18 @@
     });
   }
 
-  initLinkForm(byId("add-link"), {}, userTable);
+  initLinkForm(byId("add-link"), {}, linksTable);
   // The shared form (and deletes from other pages) change the stored links.
   api.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === "sync" && changes.localLinks)
-      populateUserLinks((changes.localLinks.newValue as Links | undefined) || {});
+    if (namespace === "sync" && linkChanges(changes)) readLinks().then(populateLinks, () => {});
   });
 
   // Hits and edits are recorded by the background; show them as they come.
   api.storage.onChanged.addListener((changes, namespace) => {
     if (namespace !== "local" || !changes.linkMetrics) return;
     metrics = (changes.linkMetrics.newValue as LinkMetrics | undefined) || {};
-    populateUserLinks(shownLocal);
-    populateTable("default-links", defaultLinks);
+    populateLinks(shownLinks);
   });
 
-  populateUserLinks(localLinks);
-  populateTable("default-links", defaultLinks);
+  populateLinks(links);
 })();

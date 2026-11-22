@@ -1,5 +1,6 @@
 // The options form writes storage exactly once per add or delete, and always
 // from the links currently in storage (not a stale render's snapshot).
+import { storedLinksExpr } from "../lib/links.mjs";
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { startChrome } from "./lib/fixture.mjs";
@@ -11,12 +12,14 @@ before(async () => {
   await fx.chrome.navigate(form, `${fx.chrome.origin}/index.html`);
   await fx.chrome.waitUrl(form, (u) => u.endsWith("/index.html"));
   await until(() => fx.chrome.evaluate(form, `!!document.getElementById("add-btn")`));
-  // Count every storage.sync.set made by the page.
+  // Count every storage.sync.set and remove made by the page.
   await fx.chrome.evaluate(
     form,
     `window.__sets = [];
      const orig = chrome.storage.sync.set.bind(chrome.storage.sync);
-     chrome.storage.sync.set = (v) => { window.__sets.push(v); return orig(v); }; true`,
+     chrome.storage.sync.set = (v) => { window.__sets.push(v); return orig(v); };
+     const origRemove = chrome.storage.sync.remove.bind(chrome.storage.sync);
+     chrome.storage.sync.remove = (k) => { window.__sets.push(k); return origRemove(k); }; true`,
   );
 });
 after(() => fx?.stop());
@@ -30,11 +33,7 @@ async function until(fn) {
 }
 
 const sets = () => fx.chrome.evaluate(form, `window.__sets.length`);
-const stored = () =>
-  fx.chrome.evaluate(
-    form,
-    `chrome.storage.sync.get("localLinks").then((r) => Object.keys(r.localLinks || {}).sort().join(","))`,
-  );
+const stored = () => fx.chrome.evaluate(form, `${storedLinksExpr}.then((l) => Object.keys(l).sort().join(","))`);
 
 async function add(name, url) {
   const before = await sets();
@@ -55,20 +54,20 @@ describe("options form storage writes", () => {
       await add(n, `https://example.com/${n}`);
       assert.equal((await sets()) - before, 1, `add ${n}`);
     }
-    assert.equal(await stored(), "zza,zzb,zzc");
+    assert.equal(await stored(), "cs,gcal,gg,gh,github,gmail,mail,yt,zza,zzb,zzc"); // the seeded defaults and the three
   });
 
   test("a delete makes exactly one storage.set and removes only that link", async () => {
     const before = await sets();
     await fx.chrome.evaluate(
       form,
-      `[...document.querySelectorAll("#user-links tr")]
+      `[...document.querySelectorAll("#links tr")]
          .find((r) => r.firstChild.textContent === "go/zzb")
          .querySelector("button").click(); true`,
     );
     await until(async () => (await sets()) > before);
     await new Promise((r) => setTimeout(r, 300));
     assert.equal((await sets()) - before, 1);
-    assert.equal(await stored(), "zza,zzc");
+    assert.equal(await stored(), "cs,gcal,gg,gh,github,gmail,mail,yt,zza,zzc");
   });
 });

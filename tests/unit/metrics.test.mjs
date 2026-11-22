@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { COMMON, load } from "./lib/sandbox.mjs";
+import { COMMON, load, putLinks } from "./lib/sandbox.mjs";
 
 const sb = () => load([...COMMON, "common/redirects.ts", "common/metrics.ts"]);
 const plain = (v) => JSON.parse(JSON.stringify(v));
@@ -129,6 +129,7 @@ test("startMetrics: the redirect listener is observe-only and filtered to go/ ma
 
 test("a redirect from a saved link is a hit; unknown and not-found are not", async () => {
   const { fake, get } = sb();
+  putLinks(fake, { github: "https://github.com", gh: "https://github.com" });
   get("startMetrics()");
   const [[listener]] = fake.listeners.redirect;
   await fire(listener, { url: "https://go/github", redirectUrl: "https://github.com/" });
@@ -141,6 +142,7 @@ test("a redirect from a saved link is a hit; unknown and not-found are not", asy
 
 test("a burst of 100 overlapping hits loses none", async () => {
   const { fake, get } = sb();
+  putLinks(fake, { github: "https://github.com", gh: "https://github.com" });
   get("startMetrics()");
   const [[listener]] = fake.listeners.redirect;
   await Promise.all(
@@ -152,22 +154,26 @@ test("a burst of 100 overlapping hits loses none", async () => {
   assert.equal(fake.store.local.linkMetrics.gh.recent.length, 100);
 });
 
-test("a changed localLinks sets lastEdit, once per changed name; defaults and removals do not", async () => {
+test("a changed link:* item sets lastEdit, once per changed name; removals, other keys and areas do not", async () => {
   const { fake, get } = sb();
   get("startMetrics()");
   const emit = (changes, area) => {
     for (const f of fake.listeners.storageChanged) f(changes, area);
   };
-  const change = (oldValue, newValue) => emit({ localLinks: { oldValue, newValue } }, "sync");
-  change(undefined, { mine: "https://example.com/1" });
+  emit({ "link:mine": { newValue: "https://example.com/1" } }, "sync");
   await get("metricsQueue");
   const first = fake.store.local.linkMetrics.mine.lastEdit;
   assert.equal(typeof first, "number");
-  change({ mine: "https://example.com/1" }, {});
-  emit({ defaultLinks: { newValue: { x: "https://x" } } }, "sync");
-  emit({ localLinks: { newValue: { y: "https://y" } } }, "local");
+  emit({ "link:mine": { oldValue: "https://example.com/1" } }, "sync"); // removal
+  emit({ "link:mine": { oldValue: "https://example.com/1", newValue: "https://example.com/1" } }, "sync"); // same
+  emit({ "seeded:x": { newValue: true }, other: { newValue: "https://x" } }, "sync");
+  emit({ "link:y": { newValue: "https://y" } }, "local");
+  emit({ localLinks: { newValue: { z: "https://z" } } }, "sync"); // the legacy item is not read
   await get("metricsQueue");
   assert.deepEqual(Object.keys(fake.store.local.linkMetrics), ["mine"]);
+  emit({ "link:mine": { oldValue: "https://example.com/1", newValue: "https://example.com/2" } }, "sync");
+  await get("metricsQueue");
+  assert.ok(fake.store.local.linkMetrics.mine.lastEdit >= first);
 });
 
 test("a failing write is logged and does not block the next", async () => {
@@ -181,6 +187,7 @@ test("a failing write is logged and does not block the next", async () => {
     }
     return set(v);
   };
+  putLinks(fake, { github: "https://github.com", gh: "https://github.com" });
   get("startMetrics()");
   const [[listener]] = fake.listeners.redirect;
   await fire(listener, { url: "https://go/gh", redirectUrl: "https://github.com/" });
@@ -260,6 +267,7 @@ test("a failed first write is not cached: the next call tries again", async () =
 
 test("startMetrics creates the device id, and a hit does not change it", async () => {
   const { fake, get } = sb();
+  putLinks(fake, { github: "https://github.com", gh: "https://github.com" });
   get("startMetrics()");
   await tick();
   const id = fake.store.local.deviceId;

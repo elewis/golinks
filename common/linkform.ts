@@ -69,17 +69,16 @@ function checkLink(rawName: string, rawUrl: string, links: Links): LinkCheck {
   return { ok: true, name, url };
 }
 
-// Names of every link (user or default) that points at the URL.
+// Names of every link that points at the URL.
 function linksForUrl(links: Links, url: string): string[] {
   const wanted = comparableUrl(url);
   if (!wanted) return [];
   return Object.keys(links).filter((name) => comparableUrl(links[name]!) === wanted);
 }
 
-// Writes one link into the user's links, lowercase, replacing any case variant.
+// Writes one link (its own sync item, name lowercase); overwriting is the same key.
 async function saveLink(name: string, url: string): Promise<void> {
-  const { localLinks }: { localLinks?: Links } = await api.storage.sync.get("localLinks");
-  await api.storage.sync.set({ localLinks: { ...removeLinkName(localLinks || {}, name), [name.toLowerCase()]: url } });
+  await api.storage.sync.set({ [linkKey(name)]: url });
 }
 
 // Builds the form inside `container`. The caller passes what to prefill; the
@@ -197,7 +196,7 @@ function initLinkForm(
     showExisting();
   });
   api.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === "sync" && (changes.localLinks || changes.defaultLinks)) reload().catch(() => {});
+    if (namespace === "sync" && linkChanges(changes)) reload().catch(() => {});
   });
 
   form.addEventListener("submit", (e) => {

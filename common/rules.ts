@@ -4,7 +4,7 @@
 // scripts. Needs api.js and links.js (getLinks) loaded first.
 
 // Rule updates are serialised on one promise chain. Two overlapping updates
-// (startup plus the storage change that getLinks() itself triggers) would both
+// (startup plus the storage change that seeding the defaults triggers) would both
 // read an empty rule list and then both add ids 1..N, failing with "Duplicate
 // rule ID". Each queued task reads the links and the existing rules afresh, so
 // the last task always leaves the rules matching the latest storage.
@@ -27,7 +27,7 @@ async function startRules(): Promise<void> {
 }
 
 api.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === "sync" && (changes.localLinks || changes.defaultLinks)) {
+  if (namespace === "sync" && linkChanges(changes)) {
     console.debug("GoLinks: links updated, refreshing rules");
     return refreshRules().catch(() => {});
   }
@@ -79,7 +79,7 @@ function get_rule(name: string, destination: string): RuleBody {
 async function updateRulesWithLinks(links: Links): Promise<void> {
   console.debug("GoLinks: updating rules with links:", links);
   // One rule per lowercased name, so no two rules match the same URL.
-  const new_rules = Object.entries(mergeLinks({}, links)).map(([golink, destination]) => get_rule(golink, destination));
+  const new_rules = Object.entries(lowercaseLinks(links)).map(([golink, destination]) => get_rule(golink, destination));
   console.debug("GoLinks: generated rules:", new_rules);
 
   // Add help and default rules

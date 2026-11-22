@@ -68,12 +68,68 @@ describe("link storage changes update the rules", () => {
     await openOptions();
     await fx.chrome.evaluate(
       form,
-      `[...document.querySelectorAll("#user-links tr")]
+      `[...document.querySelectorAll("#links tr")]
          .find((r) => r.firstChild.textContent === "go/${NAME}")
          .querySelector("button").click(); true`,
     );
     await until(async () => !(await hasRule()), "rule removal");
     const url = await finalUrl(`https://go/${NAME}`, isNotFound);
     assert.ok(isNotFound(url), `go/${NAME} -> ${url}`);
+  });
+});
+
+describe("default links are ordinary links", () => {
+  test("go/help has Get Started and one Links table; deleting go/gg removes its redirect", async () => {
+    await openOptions();
+    const titles = await fx.chrome.evaluate(
+      form,
+      `[...document.querySelectorAll("h2.section-title")].map((h) => h.textContent)`,
+    );
+    assert.deepEqual(titles, ["Get Started", "Links"]);
+    assert.equal(await fx.chrome.evaluate(form, `document.getElementById("default-links") === null`), true);
+    await until(
+      () =>
+        fx.chrome.evaluate(
+          form,
+          `[...document.querySelectorAll("#links tr")].some((r) => r.firstChild.textContent === "go/gg")`,
+        ),
+      "the go/gg row",
+    );
+    await fx.chrome.evaluate(
+      form,
+      `[...document.querySelectorAll("#links tr")].find((r) => r.firstChild.textContent === "go/gg").querySelector("button").click(); true`,
+    );
+    await until(
+      async () =>
+        !(await fx.chrome.evaluate(
+          form,
+          `chrome.declarativeNetRequest.getDynamicRules().then((rs) => rs.some((r) => JSON.stringify(r.condition).includes("go/gg")))`,
+        )),
+      "rule removal",
+    );
+    const url = await finalUrl("https://go/gg", isNotFound);
+    assert.ok(isNotFound(url), `go/gg -> ${url}`);
+  });
+});
+
+describe("a legacy localLinks item is migrated", () => {
+  test("its links become link:<name> items with working redirects, and the item is removed", async () => {
+    await openOptions();
+    // What an old version stored. The next links refresh (any link:* change, or a start) migrates it.
+    await fx.chrome.evaluate(
+      form,
+      `chrome.storage.sync.set({ localLinks: { ZZLegacy: "https://example.com/legacy" } })
+         .then(() => chrome.storage.sync.set({ "link:zztrigger": "https://example.com/trigger" })).then(() => true)`,
+    );
+    await until(
+      () =>
+        fx.chrome.evaluate(
+          form,
+          `chrome.storage.sync.get(null).then((a) => !("localLinks" in a) && a["link:zzlegacy"])`,
+        ),
+      "the migration",
+    );
+    const url = await finalUrl("https://go/zzlegacy", (u) => u.startsWith("https://example.com/"));
+    assert.equal(url, "https://example.com/legacy");
   });
 });

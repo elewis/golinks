@@ -3,6 +3,7 @@
 // The real toolbar click, Alt+Shift+G and the active-tab prefill are not
 // covered: DevTools cannot press them. The popup is opened as a normal tab,
 // where "the active tab" is the popup itself.
+import { storedLinksExpr } from "../lib/links.mjs";
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { startChrome } from "./lib/fixture.mjs";
@@ -35,7 +36,7 @@ const fill = (name, url) =>
       n.dispatchEvent(new Event("input")); u.dispatchEvent(new Event("input")); return true; })()`);
 const click = () => ev(`document.getElementById("add-btn").click(); true`);
 const text = (id) => ev(`document.getElementById(${JSON.stringify(id)}).textContent`);
-const local = () => ev(`chrome.storage.sync.get("localLinks").then((r) => r.localLinks || {})`);
+const local = () => ev(storedLinksExpr);
 
 describe("add-link form", () => {
   test("not-found page: name prefilled, URL empty and focused; saving makes the link redirect", async () => {
@@ -82,14 +83,14 @@ describe("add-link form", () => {
   test("go/help carries the same form", async () => {
     await open("https://go/help", `${fx.chrome.origin}/index.html`);
     assert.equal(await ev(`document.querySelectorAll("#add-link-form").length`), 1);
-    assert.equal(await ev(`document.querySelector("#user-links tfoot #link-name") !== null`), true);
+    assert.equal(await ev(`document.querySelector("#links tfoot #link-name") !== null`), true);
   });
 
   test("go/help: the name and URL boxes line up with the Link and Destination columns (content boxes)", async () => {
     await open("https://go/help", `${fx.chrome.origin}/index.html`);
     const aligned = () =>
       ev(`(() => {
-        const [th1, th2] = document.querySelectorAll("#user-links th");
+        const [th1, th2] = document.querySelectorAll("#links th");
         const box = (th) => {
           const r = th.getBoundingClientRect();
           const s = getComputedStyle(th), l = parseFloat(s.paddingLeft);
@@ -101,18 +102,13 @@ describe("add-link form", () => {
       })()`);
     assert.equal(await aligned(), true);
     const long = `https://example.com/${"x".repeat(300)}`;
-    await ev(
-      `chrome.storage.sync.get("localLinks").then((r) => chrome.storage.sync.set({ localLinks: { ...r.localLinks, zzlong: ${JSON.stringify(long)} } }))`,
-    );
+    await ev(`chrome.storage.sync.set({ "link:zzlong": ${JSON.stringify(long)} })`);
     await until(
-      () =>
-        ev(`[...document.querySelectorAll("#user-links td")].some((td) => td.textContent === ${JSON.stringify(long)})`),
+      () => ev(`[...document.querySelectorAll("#links td")].some((td) => td.textContent === ${JSON.stringify(long)})`),
       "the long row",
     );
     assert.equal(await aligned(), true, "still lined up with a very long destination");
-    await ev(
-      `chrome.storage.sync.get("localLinks").then((r) => { const l = { ...r.localLinks }; delete l.zzlong; return chrome.storage.sync.set({ localLinks: l }); })`,
-    );
+    await ev(`chrome.storage.sync.remove("link:zzlong")`);
   });
 
   test("validation: empty, slash, space and reserved names are errors and write nothing", async () => {
@@ -184,7 +180,7 @@ describe("add-link form", () => {
       "Overwrite go/gh (now -> https://github.com)",
     );
     await sleep(300);
-    assert.equal((await local()).gh, undefined, "nothing was written before the confirm");
+    assert.equal((await local()).gh, "https://github.com", "nothing was written before the confirm");
     // Changing the name drops the confirm.
     await fill("zzother", "https://example.com/mine");
     assert.equal(await ev(`document.getElementById("add-btn").textContent`), "Add");
