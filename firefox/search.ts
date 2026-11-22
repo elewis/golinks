@@ -29,30 +29,3 @@ function goUrlFromSearch(url: string): string | null {
   }
   return null;
 }
-
-// Every interception is logged in storage.local (a per-device log, so not sync)
-// under `interceptions`: an array, newest last, capped at MAX_INTERCEPTIONS.
-// Entry: { at: ISO timestamp, from: the original search URL, to: the https://go/
-// URL, tabId }. Writes are serialised on one promise chain so a burst loses
-// nothing; the caller does not wait for them.
-const MAX_INTERCEPTIONS = 100;
-let interceptionsQueue: Promise<unknown> = Promise.resolve();
-
-type Interception = { at: string; from: string; to: string; tabId: number };
-
-function recordInterception(details: { url: string; tabId: number }, redirectUrl: string): Promise<unknown> {
-  const entry: Interception = {
-    at: new Date().toISOString(),
-    from: details.url,
-    to: redirectUrl,
-    tabId: details.tabId,
-  };
-  interceptionsQueue = interceptionsQueue
-    .then(async () => {
-      const { interceptions = [] }: { interceptions?: Interception[] } = await api.storage.local.get("interceptions");
-      interceptions.push(entry);
-      await api.storage.local.set({ interceptions: interceptions.slice(-MAX_INTERCEPTIONS) });
-    })
-    .catch((e) => console.error("GoLinks: recording interception failed:", e));
-  return interceptionsQueue;
-}

@@ -1,10 +1,11 @@
 "use strict";
 
 // Firefox-only wiring. Rule generation is in rules.js (shared), search parsing
-// and recording in search.js; this file adds the host-permission warning and
+// in search.js; this file adds the host-permission warning and
 // the webRequest interception of address-bar searches for protocol-less go/ URLs.
 
 startMetrics();
+startRedirectLog();
 
 (async () => {
   // Check if we have the necessary permissions
@@ -31,7 +32,7 @@ api.webRequest.onBeforeRequest.addListener(
     const redirectUrl = goUrlFromSearch(details.url);
     if (redirectUrl) {
       console.debug("GoLinks: intercepting search, redirecting to:", redirectUrl);
-      recordInterception(details, redirectUrl);
+      noteSearchRedirect(details.requestId, details.url);
       return { redirectUrl };
     }
   },

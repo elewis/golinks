@@ -4,7 +4,14 @@ import { COMMON, load } from "./lib/sandbox.mjs";
 
 // The Firefox background script in the order its manifest lists the scripts.
 const sb = () =>
-  load([...COMMON, "common/redirects.ts", "common/metrics.ts", "firefox/search.ts", "firefox/background.ts"]);
+  load([
+    ...COMMON,
+    "common/redirects.ts",
+    "common/metrics.ts",
+    "common/redirectlog.ts",
+    "firefox/search.ts",
+    "firefox/background.ts",
+  ]);
 
 test("manifest lists the scripts in the order the sandbox loads them", async () => {
   const { readFile } = await import("node:fs/promises");
@@ -15,6 +22,7 @@ test("manifest lists the scripts in the order the sandbox loads them", async () 
     "rules.js",
     "redirects.js",
     "metrics.js",
+    "redirectlog.js",
     "search.js",
     "background.js",
   ]);
@@ -26,22 +34,37 @@ test("the blocking listener watches main_frame on all URLs", () => {
   assert.deepEqual(JSON.parse(JSON.stringify(extra)), ["blocking"]);
 });
 
-test("the listener redirects a navigation without originUrl and records it", async () => {
+test("the listener redirects a navigation without originUrl; the search becomes the entry's from", async () => {
   const { fake } = sb();
   const [[listener]] = fake.listeners.webRequest;
-  const r = listener({ url: "https://www.google.com/search?q=go%2Fgithub", tabId: 3 });
+  const search = "https://www.google.com/search?q=go%2Fgithub";
+  const r = listener({ url: search, tabId: 3, requestId: "r1" });
   assert.deepEqual({ ...r }, { redirectUrl: "https://go/github" });
+  // Nothing is logged by the interception itself.
   await new Promise((res) => setTimeout(res, 0));
-  assert.equal(fake.store.local.interceptions.length, 1);
+  assert.deepEqual(
+    Object.keys(fake.store.local).filter((k) => k.startsWith("redirectLog")),
+    [],
+  );
+  // The go/ hop that follows logs one entry whose from is the search.
+  const [[onRedirect]] = fake.listeners.redirect;
+  onRedirect({ url: "https://go/github", redirectUrl: "https://github.com/", requestId: "r1", tabId: 3 });
+  await new Promise((res) => setTimeout(res, 0));
+  const [key] = Object.keys(fake.store.local).filter((k) => k.startsWith("redirectLog:"));
+  assert.equal(fake.store.local[key].length, 1);
+  assert.equal(fake.store.local[key][0].from, search);
 });
 
-test("the listener leaves page-originated and non-go/ requests alone and records nothing", async () => {
+test("the listener leaves page-originated and non-go/ requests alone and logs nothing", async () => {
   const { fake } = sb();
   const [[listener]] = fake.listeners.webRequest;
   assert.equal(listener({ url: "https://g.com/?q=go/github", originUrl: "http://a.test/", tabId: 1 }), undefined);
   assert.equal(listener({ url: "https://github.com/golang/go/issues", tabId: 1 }), undefined);
   await new Promise((res) => setTimeout(res, 0));
-  assert.equal(fake.store.local.interceptions, undefined);
+  assert.deepEqual(
+    Object.keys(fake.store.local).filter((k) => k.startsWith("redirectLog")),
+    [],
+  );
 });
 
 test("startup builds the rules", async () => {

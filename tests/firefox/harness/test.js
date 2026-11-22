@@ -269,20 +269,28 @@ async function run(cmd) {
     return {};
   }
   if (cmd.op === "log") {
-    const { interceptions } = await browser.storage.local.get("interceptions");
-    return { entries: interceptions || [] };
+    // The harness's own go/zztest-* navigations are logged like any other.
+    const all = await browser.storage.local.get(null);
+    const keys = Object.keys(all)
+      .filter((k) => k.startsWith("redirectLog:"))
+      .sort();
+    return { keys, entries: keys.flatMap((k) => all[k]).filter((e) => !e.link.startsWith("zztest-")) };
   }
-  if (cmd.op === "flood") {
-    // 150 overlapping records, straight into the background page.
+  if (cmd.op === "logflood") {
+    // 9,990 stored entries in today's key, then 20 overlapping appends: the
+    // serialised queue keeps every new one and the cap trims the oldest 10.
     const bg = await browser.runtime.getBackgroundPage();
-    await browser.storage.local.remove("interceptions");
+    const now = Math.floor(Date.now() / 1000);
+    const key = bg.redirectDayKey(now);
+    const old = Array.from({ length: 9990 }, (_, i) => ({ at: now, from: "f", link: "old", to: "t", tabId: i }));
+    await browser.storage.local.set({ [key]: old });
     await Promise.all(
-      Array.from({ length: 150 }, (_, i) =>
-        bg.recordInterception({ url: `https://e.test/?q=go%2Fn${i}`, tabId: i }, `https://go/n${i}`),
+      Array.from({ length: 20 }, (_, i) =>
+        bg.appendRedirectLog({ at: now, from: "f", link: "new", to: "t", tabId: i }),
       ),
     );
-    const { interceptions } = await browser.storage.local.get("interceptions");
-    return { entries: interceptions || [] };
+    const all = (await browser.storage.local.get(key))[key];
+    return { count: all.length, firstTab: all[0].tabId, news: all.filter((e) => e.link === "new").map((e) => e.tabId) };
   }
   if (cmd.op === "metrics") {
     const { linkMetrics } = await browser.storage.local.get("linkMetrics");

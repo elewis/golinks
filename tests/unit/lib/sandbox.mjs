@@ -19,6 +19,9 @@ export function fakeApi() {
     async set(items) {
       Object.assign(store[name], structuredClone(items));
     },
+    async remove(keys) {
+      for (const k of [keys].flat()) delete store[name][k];
+    },
   });
   let rules = [];
   const listeners = { storageChanged: [], webRequest: [], redirect: [] };

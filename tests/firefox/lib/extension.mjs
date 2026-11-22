@@ -30,12 +30,14 @@ export const MUTATIONS = {
   "hijack-go-substring": ["search.js", "query.match(/^go\\/", "query.match(/go\\/"],
   // Simulates losing the narrowing: link clicks and form submits from a page are redirected too.
   "redirect-from-pages": ["background.js", "if (details.originUrl) {", "if (false) {"],
-  "no-interception-cap": ["search.js", "interceptions.slice(-MAX_INTERCEPTIONS)", "interceptions"],
-  "interception-race": [
-    "search.js",
-    "interceptionsQueue = interceptionsQueue\n    .then(",
-    "interceptionsQueue = Promise.resolve()\n    .then(",
+  "no-redirect-log-cap": ["redirectlog.js", "- REDIRECT_LOG_MAX_ENTRIES;", "- Infinity;"],
+  "redirect-log-race": [
+    "redirectlog.js",
+    "redirectLogQueue = redirectLogQueue\n    .then(",
+    "redirectLogQueue = Promise.resolve()\n    .then(",
   ],
+  // Simulates losing the search join: the entry's from is the go/ URL, not the search.
+  "no-search-join": ["redirectlog.js", "redirectPending.get(fact.requestId)?.from ?? fact.from", "fact.from"],
   "delete-noop": ["index.js", "delete current[golink];", ""],
   "no-storage-refresh": ["rules.js", 'namespace === "sync" &&', 'namespace === "never" &&'],
 };
@@ -55,7 +57,7 @@ const HARNESS_RULES = [
   "frame",
   "regex",
   "log",
-  "flood",
+  "logflood",
   "metrics",
   "metricsedit",
   "metricshelp",
