@@ -207,7 +207,10 @@ function initLinkForm(
     }
     await saveLink(result.name, result.url);
     resetConfirm();
-    nameInput.value = result.name;
+    // Saved: empty boxes for the next link; the status keeps saying what was saved.
+    nameInput.value = "";
+    urlInput.value = "";
+    nameInput.focus();
     status.textContent = `Saved go/${result.name}`;
     await reload();
   }

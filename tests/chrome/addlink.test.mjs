@@ -48,6 +48,9 @@ describe("add-link form", () => {
     await click();
     await until(async () => (await local()).zznew === "https://example.com/new", "the link in storage");
     assert.equal(await text("link-status"), "Saved go/zznew");
+    assert.equal(await ev(`document.getElementById("link-name").value`), "");
+    assert.equal(await ev(`document.getElementById("link-url").value`), "");
+    assert.equal(await ev(`document.activeElement.id`), "link-name");
     await until(
       () =>
         ev(
@@ -127,6 +130,14 @@ describe("add-link form", () => {
       await until(async () => (await text(id)) !== "", `error for ${JSON.stringify([name, url])}`);
     }
     assert.deepEqual(await local(), before);
+    assert.deepEqual(
+      await ev(`[document.getElementById("link-name").value, document.getElementById("link-url").value]`),
+      ["okname", ""],
+    );
+    await fill("okname", "notaurl");
+    await click();
+    await until(async () => (await text("link-url-error")) !== "", "the URL error");
+    assert.equal(await ev(`document.getElementById("link-url").value`), "notaurl", "an error keeps what was typed");
   });
 
   test("existing links for the URL are listed in the form, trailing / ignored, and do not block another name", async () => {
@@ -139,6 +150,10 @@ describe("add-link form", () => {
     await fill("zzgit", "https://github.com");
     await click();
     await until(async () => (await local()).zzgit === "https://github.com", "the second name");
+    await until(async () => (await text("link-status")) === "Saved go/zzgit", "the saved status");
+    assert.deepEqual(await list(), [], "the cleared form lists nothing");
+    assert.equal(await ev(`document.getElementById("link-existing").hidden`), true);
+    await fill("", "https://github.com");
     await until(async () => (await list()).includes("go/zzgit"), "the new name in the list");
     await fill("", "https://nothing.test");
     assert.deepEqual(await list(), []);
@@ -171,6 +186,8 @@ describe("add-link form", () => {
     await click();
     await until(async () => (await local()).gh === "https://example.com/mine", "the overwrite");
     assert.equal(await text("link-status"), "Saved go/gh");
+    assert.equal(await ev(`document.getElementById("link-name").value`), "");
+    assert.equal(await ev(`document.getElementById("link-url").value`), "");
     assert.equal(await ev(`document.getElementById("add-btn").textContent`), "Add");
     await fx.chrome.navigate(page, "https://go/gh");
     assert.equal(

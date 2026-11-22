@@ -135,6 +135,7 @@ async function run(cmd) {
     await waitFor(async () => (await local()).zznew === "https://example.com/new", "zznew stored");
     await waitFor(() => hasRule("zznew"), "rule for zznew");
     await waitFor(() => nf.id("link-status").textContent === "Saved go/zznew", "saved message");
+    out.nfAfterSave = [nf.id("link-name").value, nf.id("link-url").value, nf.doc.activeElement.id];
     // Popup page: the same form with the URL focused (no tab URL to fill).
     const pop = await open("popup.html");
     out.popName = pop.id("link-name").value;
@@ -147,6 +148,7 @@ async function run(cmd) {
       await waitFor(() => pop.id("link-name-error").textContent, `error for ${JSON.stringify(name)}`);
     }
     await sleep(300);
+    out.valKept = [pop.id("link-name").value, pop.id("link-url").value];
     out.validationWrote = JSON.stringify(await local()) !== before;
     // Existing links for the URL are listed, trailing slash ignored.
     pop.set("", "https://github.com/");
@@ -208,6 +210,7 @@ async function run(cmd) {
     help.id("add-btn").click();
     await waitFor(async () => (await local()).gh === "https://example.com/fromhelp", "help overwrite stored");
     out.helpStatus = help.id("link-status").textContent;
+    out.helpAfterSave = [help.id("link-name").value, help.id("link-url").value, help.id("add-btn").textContent];
     return out;
   }
   if (cmd.op === "seed") {

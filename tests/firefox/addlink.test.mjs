@@ -31,8 +31,10 @@ test("not-found page carries the name; the shared form saves, validates, lists a
   const r = JSON.parse(Buffer.from(url.split("#result=")[1], "hex").toString());
   assert.ok(r.ok, `harness failed: ${r.error}`);
   assert.deepEqual([r.nfName, r.nfUrl, r.nfFocus], ["zznew", "", "link-url"]);
+  assert.deepEqual(r.nfAfterSave, ["", "", "link-name"], "boxes emptied after a save, focus on the name");
   assert.deepEqual([r.popName, r.popFocus], ["", "link-url"]);
   assert.equal(r.validationWrote, false);
+  assert.deepEqual(r.valKept, ["help", "https://x.test"], "a validation error keeps what was typed");
   assert.deepEqual(r.existing, ["go/gh", "go/github"]);
   assert.equal(r.confirmLabel, "Overwrite go/gh (now -> https://github.com)");
   assert.equal(r.wroteBeforeConfirm, false);
@@ -42,6 +44,7 @@ test("not-found page carries the name; the shared form saves, validates, lists a
   assert.match(r.helpConfirmLabel, /^Overwrite go\/gh \(now -> /);
   assert.equal(r.helpWroteBeforeConfirm, false);
   assert.equal(r.helpStatus, "Saved go/gh");
+  assert.deepEqual(r.helpAfterSave, ["", "", "Add"], "go/help: boxes emptied after a confirmed overwrite");
 
   await navigate("https://go/zznew");
   assert.equal(await fx.ff.waitUrl((u) => u.startsWith("https://example.com/")), "https://example.com/new");
