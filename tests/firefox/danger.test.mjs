@@ -50,5 +50,6 @@ test("clear metrics and reset: cancel and Escape change nothing, confirm does th
   assert.ok(!r.keysAfterReset.includes("helpSort"), "the sort order is reset");
   assert.ok(!r.keysAfterReset.some((k) => k.startsWith("redirectLog:")));
   assert.equal(r.mineStat, undefined, "the old metrics are gone");
+  assert.deepEqual(r.editedAfterReset, [], "the re-added defaults have no last edit");
   assert.equal(r.deviceIdAfter, r.deviceIdBefore, "the device id stays");
 });

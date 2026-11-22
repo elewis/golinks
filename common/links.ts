@@ -138,18 +138,36 @@ async function readLinks(): Promise<Links> {
   return linksFromItems(await api.storage.sync.get(null));
 }
 
+// The names whose `seeded:<name>` marker was newly set in a storage.onChanged
+// event (sync area), i.e. a shipped default was written by seeding or by a
+// reset, in the same storage.set as its link. An unchanged marker is not in the
+// event, so a reset removes the markers first (resetLinksPlan) to get them back
+// as new ones. A user's own save writes only `link:<name>`.
+function seededNames(changes: Record<string, { oldValue?: unknown; newValue?: unknown }>): Set<string> {
+  const names = new Set<string>();
+  for (const [key, change] of Object.entries(changes)) {
+    if (key.startsWith(SEEDED_PREFIX) && change.newValue === true && change.oldValue !== true) {
+      names.add(key.slice(SEEDED_PREFIX.length).toLowerCase());
+    }
+  }
+  return names;
+}
+
 // Resetting to the shipped links: what to remove and what to write, given the
-// stored sync items. Removes every `link:*` item; writes each shipped default
-// as `link:<name>` with its `seeded:<name>` marker, so seedDefaults() finds
-// nothing left to do (the markers of defaults the user had deleted come back
-// too, which is the point). Other items are left alone.
+// stored sync items. Removes every `link:*` and `seeded:*` item; writes each
+// shipped default as `link:<name>` with its `seeded:<name>` marker, so
+// seedDefaults() finds nothing left to do (the markers of defaults the user had
+// deleted come back too, which is the point). The markers are removed and
+// re-added so that the change event shows each as newly set (seededNames()), which
+// tells the metrics edit listener this write is not a user edit. Other items are left alone.
 function resetLinksPlan(stored: Record<string, unknown>): { remove: string[]; set: Record<string, unknown> } {
   const set: Record<string, unknown> = {};
   for (const [name, url] of Object.entries(SHIPPED_LINKS)) {
     set[linkKey(name)] = url;
     set[SEEDED_PREFIX + name] = true;
   }
-  return { remove: Object.keys(stored).filter((key) => key.startsWith(LINK_PREFIX)), set };
+  const remove = Object.keys(stored).filter((key) => key.startsWith(LINK_PREFIX) || key.startsWith(SEEDED_PREFIX));
+  return { remove, set };
 }
 
 // Replaces the user's links by the shipped ones: one storage.remove, then one

@@ -179,7 +179,9 @@ function startMetrics(): void {
   api.storage.onChanged.addListener((changes, namespace) => {
     const changed = namespace === "sync" ? linkChanges(changes) : null;
     if (!changed) return;
-    const names = editedNames(changed.before, changed.after);
+    // A default written by seeding or a reset (its seeded marker is new in the same event) is not a user edit.
+    const seeded = seededNames(changes);
+    const names = editedNames(changed.before, changed.after).filter((name) => !seeded.has(name));
     if (names.length === 0) return;
     const now = Math.floor(Date.now() / 1000);
     updateMetrics((metrics) => names.reduce((m, name) => withEdit(m, name, now), metrics));

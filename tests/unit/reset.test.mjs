@@ -4,11 +4,11 @@ import { COMMON, load, putLinks, linksIn } from "./lib/sandbox.mjs";
 
 const sb = () => load([...COMMON, "common/redirects.ts", "common/redirectlog.ts"]);
 
-test("resetPlan: removes every link:* item, writes the shipped links and their seeded markers", () => {
+test("resetPlan: removes every link:* and seeded:* item, writes the shipped links and their seeded markers", () => {
   const s = sb();
   const stored = { "link:mine": "https://m.test", "link:gh": "https://other.test", "seeded:gh": true, other: 1 };
   const plan = JSON.parse(JSON.stringify(s.get(`resetLinksPlan(${JSON.stringify(stored)})`)));
-  assert.deepEqual(plan.remove.sort(), ["link:gh", "link:mine"]);
+  assert.deepEqual(plan.remove.sort(), ["link:gh", "link:mine", "seeded:gh"]);
   const shipped = JSON.parse(JSON.stringify(s.get("SHIPPED_LINKS")));
   const expected = {};
   for (const [n, u] of Object.entries(shipped)) {
@@ -134,8 +134,91 @@ test("factoryReset: clears this device first, so the edit listener's metrics wri
 
   const metrics = fake.store.local.linkMetrics ?? {};
   assert.equal(metrics.zzmine, undefined, "the old stats stay cleared");
-  assert.ok(metrics.gh?.lastEdit, "a re-added default only has its lastEdit");
-  assert.equal(metrics.gh?.count, 0);
-  assert.deepEqual(Object.keys(fake.store.local).sort(), ["deviceId", "linkMetrics"]);
+  assert.deepEqual(
+    Object.values(metrics).filter((m) => m.lastEdit !== undefined),
+    [],
+    "no lastEdit after a reset",
+  );
+  assert.equal(metrics.gh, undefined, "a re-added default has no stats at all");
   assert.deepEqual(linksIn(fake), JSON.parse(JSON.stringify(s.get("SHIPPED_LINKS"))));
+});
+
+// A fake whose sync writes fire storage.onChanged like a browser: only keys whose value changed are reported.
+function withChangeEvents(s) {
+  const { fake } = s;
+  const area = fake.api.storage.sync;
+  const set = area.set.bind(area);
+  const remove = area.remove.bind(area);
+  const fire = (changes) => {
+    if (Object.keys(changes).length > 0) for (const f of fake.listeners.storageChanged) f(changes, "sync");
+  };
+  area.set = async (items) => {
+    const before = structuredClone(fake.store.sync);
+    await set(items);
+    fire(
+      Object.fromEntries(
+        Object.keys(items)
+          .filter((k) => JSON.stringify(before[k]) !== JSON.stringify(items[k]))
+          .map((k) => [k, { oldValue: before[k], newValue: items[k] }]),
+      ),
+    );
+  };
+  area.remove = async (keys) => {
+    const before = structuredClone(fake.store.sync);
+    await remove(keys);
+    fire(
+      Object.fromEntries(
+        [keys]
+          .flat()
+          .filter((k) => k in before)
+          .map((k) => [k, { oldValue: before[k] }]),
+      ),
+    );
+  };
+}
+const editsIn = (fake) =>
+  Object.entries(fake.store.local.linkMetrics ?? {})
+    .filter(([, m]) => m.lastEdit !== undefined)
+    .map(([n]) => n);
+const loadMetrics = () => {
+  const s = load([...COMMON, "common/redirects.ts", "common/metrics.ts", "common/redirectlog.ts"]);
+  withChangeEvents(s);
+  s.get("startMetrics()");
+  return s;
+};
+
+test("reset to default: a reset over already-seeded defaults (markers present) sets no lastEdit", async () => {
+  const s = loadMetrics();
+  await s.get("seedDefaults()");
+  await s.get("metricsQueue");
+  await s.get("factoryReset()");
+  await s.get("metricsQueue");
+  assert.deepEqual(editsIn(s.fake), []);
+  assert.equal(Object.keys(linksIn(s.fake)).length, Object.keys(s.get("SHIPPED_LINKS")).length);
+});
+
+test("first-install seeding sets no lastEdit", async () => {
+  const s = loadMetrics();
+  await s.get("seedDefaults()");
+  await s.get("metricsQueue");
+  assert.deepEqual(editsIn(s.fake), []);
+  assert.ok(Object.keys(linksIn(s.fake)).length > 0);
+});
+
+test("after a reset, a user save of a default's own URL is an edit; so is a new link", async () => {
+  const s = loadMetrics();
+  await s.get("factoryReset()");
+  await s.fake.api.storage.sync.set({ "link:gh": "https://other.test" });
+  await s.fake.api.storage.sync.set({ "link:gh": "https://github.com" }); // back to the default by hand
+  await s.fake.api.storage.sync.set({ "link:mine": "https://m.test" });
+  await s.get("metricsQueue");
+  assert.deepEqual(editsIn(s.fake).sort(), ["gh", "mine"]);
+});
+
+test("a user save of a link whose seeded marker already exists is an edit", async () => {
+  const s = loadMetrics();
+  await s.get("seedDefaults()");
+  await s.fake.api.storage.sync.set({ "link:gh": "https://other.test" });
+  await s.get("metricsQueue");
+  assert.deepEqual(editsIn(s.fake), ["gh"]);
 });

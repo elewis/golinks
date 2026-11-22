@@ -33,10 +33,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 describe("link usage metrics", () => {
   test("nothing is recorded before any hit", async () => {
-    // Seeding the default links is an edit (lastEdit), not a hit.
+    // Seeding the default links is neither a hit nor an edit (no lastEdit).
     for (const [name, stat] of Object.entries(await metrics())) {
       assert.equal(stat.count, 0, name);
       assert.equal(stat.lastHit, undefined, name);
+      assert.equal(stat.lastEdit, undefined, name);
     }
   });
 
@@ -90,7 +91,7 @@ describe("link usage metrics", () => {
     assert.equal(name, "go/github");
     assert.equal(hits, "1");
     assert.match(lastHit, /^\d{2}\/\d{2}\/\d{4},? \d{2}:\d{2}:\d{2}$/);
-    assert.match(lastEdit, /^\d{2}\/\d{2}\/\d{4},? \d{2}:\d{2}:\d{2}$/, "seeded, so it has a last edit");
+    assert.equal(lastEdit, "—", "a seeded default has no last edit");
     assert.equal(rows["go/gg"][2], "0");
     assert.equal(rows["go/gg"][3], "never");
   });

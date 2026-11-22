@@ -491,6 +491,7 @@ async function run(cmd) {
     const after = await local();
     out.keysAfterReset = Object.keys(after).sort();
     out.mineStat = after.linkMetrics?.zzmine;
+    out.editedAfterReset = Object.entries(after.linkMetrics ?? {}).filter(([, m]) => m.lastEdit !== undefined);
     out.deviceIdAfter = after.deviceId;
     return out;
   }

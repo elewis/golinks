@@ -110,5 +110,12 @@ test("clear metrics and reset: cancel and Escape change nothing, confirm does th
   assert.ok(!after.some((k) => k.startsWith("redirectLog:")));
   assert.ok(!after.includes("helpSort"));
   assert.equal(await ev(`chrome.storage.local.get("linkMetrics").then((o) => o.linkMetrics?.zzmine)`), undefined);
+  assert.equal(
+    await ev(
+      `chrome.storage.local.get("linkMetrics").then((o) => Object.values(o.linkMetrics ?? {}).filter((m) => m.lastEdit !== undefined).length)`,
+    ),
+    0,
+    "the re-added defaults have no last edit",
+  );
   assert.equal(await ev(`chrome.storage.local.get("deviceId").then((o) => o.deviceId)`), deviceId);
 });
