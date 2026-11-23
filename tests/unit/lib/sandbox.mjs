@@ -24,6 +24,7 @@ export function fakeApi() {
     },
   });
   let rules = [];
+  const fake = { tabs: {} };
   const listeners = { storageChanged: [], webRequest: [], redirect: [] };
   const api = {
     storage: {
@@ -48,10 +49,18 @@ export function fakeApi() {
       onBeforeRequest: { addListener: (...args) => listeners.webRequest.push(args) },
       onBeforeRedirect: { addListener: (...args) => listeners.redirect.push(args) },
     },
+    // Chrome-style tab lookup (Tab.incognito, no "tabs" permission needed). `fake.tabs` maps id -> incognito;
+    // an id not in it is a normal tab, and null makes the lookup fail (closed tab).
+    tabs: {
+      async get(id) {
+        if (fake.tabs[id] === null) throw new Error(`No tab with id: ${id}.`);
+        return { id, incognito: fake.tabs[id] ?? false };
+      },
+    },
     runtime: { getURL: (p) => `chrome-extension://fake-id/${p}` },
     permissions: { contains: async () => true },
   };
-  return { api, store, calls, listeners, rules: () => rules };
+  return Object.assign(fake, { api, store, calls, listeners, rules: () => rules });
 }
 
 /**

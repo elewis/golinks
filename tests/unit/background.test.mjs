@@ -72,3 +72,25 @@ test("startup builds the rules", async () => {
   await new Promise((res) => setTimeout(res, 20));
   assert.ok(fake.rules().length > 3);
 });
+
+test("a private-window search is still redirected, but nothing of it is stored", async () => {
+  const { fake, get } = sb();
+  const [[listener]] = fake.listeners.webRequest;
+  const search = "https://www.google.com/search?q=go%2Fgithub";
+  const r = listener({ url: search, tabId: 3, requestId: "p1", incognito: true });
+  assert.deepEqual({ ...r }, { redirectUrl: "https://go/github" });
+  assert.equal(get("redirectPending.size"), 0);
+  const [[onRedirect]] = fake.listeners.redirect;
+  onRedirect({
+    url: "https://go/github",
+    redirectUrl: "https://github.com/",
+    requestId: "p1",
+    tabId: 3,
+    incognito: true,
+  });
+  await new Promise((res) => setTimeout(res, 0));
+  assert.deepEqual(
+    Object.keys(fake.store.local).filter((k) => k.startsWith("redirectLog") || k === "linkMetrics"),
+    [],
+  );
+});

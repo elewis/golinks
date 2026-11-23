@@ -32,7 +32,8 @@ api.webRequest.onBeforeRequest.addListener(
     const redirectUrl = goUrlFromSearch(details.url);
     if (redirectUrl) {
       console.debug("GoLinks: intercepting search, redirecting to:", redirectUrl);
-      noteSearchRedirect(details.requestId, details.url);
+      // A private-window search is redirected like any other but not remembered.
+      if (!details.incognito) noteSearchRedirect(details.requestId, details.url);
       return { redirectUrl };
     }
   },
