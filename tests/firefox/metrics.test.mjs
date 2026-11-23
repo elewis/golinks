@@ -124,4 +124,37 @@ describe("link usage metrics", () => {
     assert.deepEqual(stored, { column: "hits", dir: "asc" });
     assert.deepEqual(remembered, hitsAsc, "a new page load keeps the choice");
   });
+
+  test("metrics off: a hit is not counted, the kept stats stay; on again it resumes", async () => {
+    const before = (await metrics()).github.count;
+    await harness("metricsoff");
+    await navigate("https://go/github");
+    await fx.ff.waitUrl((u) => u.startsWith("https://github.com/"));
+    await sleep(800);
+    assert.equal((await metrics()).github.count, before, "nothing counted while off");
+    await harness("metricson");
+    await navigate("https://go/github");
+    await fx.ff.waitUrl((u) => u.startsWith("https://github.com/"));
+    await sleep(800);
+    assert.equal((await metrics()).github.count, before + 1);
+  });
+
+  test("go/help's two settings: defaults, writes, hidden columns, sort fallback, log deletion", async () => {
+    const r = await harness("settings");
+    assert.deepEqual(r.labels, ["Usage metrics", "Redirect log"], "each checkbox has a label");
+    assert.deepEqual(r.defaults, { metrics: true, log: false });
+    assert.ok(r.columnsOn.headers.every(Boolean) && r.columnsOn.cells.every(Boolean));
+    assert.equal(r.logOn, true);
+    assert.equal(r.logKeptWhenOn, true);
+    assert.equal(r.metricsOff, false);
+    assert.deepEqual(r.columnsOff.headers, [true, true, false, false, false, true], "usage headers hidden");
+    assert.deepEqual(r.columnsOff.cells, [true, true, false, false, false, true], "usage cells hidden");
+    assert.ok(r.columnsOff.addVisible, "the add button stays");
+    assert.deepEqual(r.sortWhileOff, ["Link"], "a sort on a hidden column shows as the default");
+    assert.deepEqual(r.storedSortWhileOff, { column: "hits", dir: "desc" }, "the stored sort is not overwritten");
+    assert.equal(r.logBoxFollows, false, "a change from elsewhere shows in the open page");
+    assert.deepEqual(r.logKeysAfterOff, []);
+    assert.ok(r.columnsBack.headers.every(Boolean) && r.columnsBack.cells.every(Boolean));
+    assert.deepEqual(r.sortBack, ["Hits"], "the remembered sort is back with its column");
+  });
 });

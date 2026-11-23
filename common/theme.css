@@ -310,6 +310,11 @@ th[aria-sort="descending"] .sort-btn::after {
   width: 100%;
 }
 
+/* Usage metrics off: the hits, last hit and last edited columns are hidden (go/help marks them with `metric`). */
+.data-table.no-metrics .metric {
+  display: none;
+}
+
 /* ---- Form controls ---- */
 
 .form {
@@ -456,6 +461,52 @@ th[aria-sort="descending"] .sort-btn::after {
 .segmented button:focus-visible {
   outline: 0;
   box-shadow: 0 0 0 3px var(--color-accent-ring) inset;
+}
+
+/* A checkbox: a real <input type="checkbox" class="checkbox"> with a <label> (or aria-labelledby) for its name. */
+.checkbox {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1px solid var(--color-control);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.checkbox:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.checkbox:checked {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+/* The check mark: two borders of a box, turned. */
+.checkbox:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 4px;
+  height: 9px;
+  border: solid var(--color-on-accent);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.checkbox:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--color-accent-ring);
+}
+
+.checkbox:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 /* ---- Settings: the bottom of go/help. One row per setting: a title and a muted description at the left,

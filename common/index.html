@@ -49,6 +49,20 @@
                     </div>
                     <div class="settings-row">
                         <div class="settings-text">
+                            <label class="settings-title" for="metrics-enabled">Usage metrics</label>
+                            <div class="settings-desc" id="metrics-desc">Count how often you use each link on this device.</div>
+                        </div>
+                        <input type="checkbox" class="checkbox" id="metrics-enabled" aria-describedby="metrics-desc" checked>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-text">
+                            <label class="settings-title" for="log-enabled">Redirect log</label>
+                            <div class="settings-desc" id="log-desc">Keep a 7-day log of go/ navigations on this device. Turning it off deletes the log.</div>
+                        </div>
+                        <input type="checkbox" class="checkbox" id="log-enabled" aria-describedby="log-desc">
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-text">
                             <div class="settings-title">Clear metrics</div>
                             <div class="settings-desc">Delete the hit counts and the redirect log on this device.</div>
                         </div>
@@ -57,7 +71,7 @@
                     <div class="settings-row">
                         <div class="settings-text">
                             <div class="settings-title">Reset to default</div>
-                            <div class="settings-desc">Factory reset: replace all links with the defaults (on every synced device) and clear this device's metrics, redirect log, sort order and appearance.</div>
+                            <div class="settings-desc">Factory reset: replace all links with the defaults (on every synced device) and clear this device's metrics, redirect log, sort order and appearance, and switch the usage metrics (on) and the redirect log (off) back to their defaults.</div>
                         </div>
                         <button type="button" class="btn btn-danger" id="reset-btn">Reset to default</button>
                     </div>

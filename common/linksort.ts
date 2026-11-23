@@ -22,6 +22,13 @@ function validSort(value: unknown): Sort {
   return { ...DEFAULT_SORT };
 }
 
+// The sort to show: while the usage columns are hidden (metrics off), a remembered sort on one of them shows as the
+// default. The stored choice is not touched.
+function effectiveSort(sort: Sort, metricsOn: boolean): Sort {
+  const usage = sort.column === "hits" || sort.column === "lastHit" || sort.column === "lastEdit";
+  return !metricsOn && usage ? { ...DEFAULT_SORT } : sort;
+}
+
 // Text columns start A→Z; hits and times start with the highest / newest.
 function firstDirection(column: SortColumn): SortDir {
   return column === "link" || column === "destination" ? "asc" : "desc";

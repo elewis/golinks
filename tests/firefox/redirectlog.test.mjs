@@ -6,7 +6,10 @@ import { after, before, describe, test } from "node:test";
 import { startFirefox } from "./lib/fixture.mjs";
 
 let fx;
-before(async () => (fx = await startFirefox()));
+before(async () => {
+  fx = await startFirefox();
+  await harness("logon"); // the log is off by default
+});
 after(() => fx?.stop());
 
 async function navigate(url) {
@@ -33,6 +36,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const entries = async () => (await harness("log")).entries;
 
 describe("the redirect log", () => {
+  test("it is off by default: with no setting a navigation is not logged", async () => {
+    await fx.ff.get("about:blank");
+    await harness("logoff");
+    await navigate("https://go/github");
+    await fx.ff.waitUrl((u) => u.startsWith("https://github.com/"));
+    await sleep(800);
+    assert.deepEqual((await harness("log")).keys, []);
+    await harness("logon");
+  });
+
   test("nothing is logged before any navigation", async () => {
     assert.deepEqual(await entries(), []);
   });
@@ -110,6 +123,16 @@ describe("the redirect log", () => {
     await fx.ff.waitUrl((u) => u.endsWith("/index.html"));
     await sleep(500);
     assert.equal((await entries()).length, 5);
+  });
+
+  test("turning the log off deletes it and later navigations add nothing", async () => {
+    await harness("logoff");
+    assert.deepEqual((await harness("log")).keys, []);
+    await navigate("https://go/github");
+    await fx.ff.waitUrl((u) => u.startsWith("https://github.com/"));
+    await sleep(800);
+    assert.deepEqual((await harness("log")).keys, []);
+    await harness("logon");
   });
 
   test("20 overlapping appends keep every one and the 10,000 cap trims the oldest", async () => {

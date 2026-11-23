@@ -254,7 +254,8 @@ async function run(cmd) {
     if (seed.hits) {
       // Wait for the background to record the edits, then add the sample hits to them.
       const get = async () => (await browser.storage.local.get("linkMetrics")).linkMetrics;
-      const last = Object.keys(seed.localLinks).pop();
+      // A seeded default written with its own URL is no edit, so wait for the first link (a non-default sample).
+      const last = Object.keys(seed.localLinks)[0];
       if (last) await waitFor(async () => (await get())?.[last]?.lastEdit, "edits");
       const metrics = (await get()) ?? {};
       const now = Math.floor(Date.now() / 1000);
@@ -269,6 +270,8 @@ async function run(cmd) {
     const shot = await (await fetch("shot.json")).json();
     await browser.storage.local.remove("helpSort"); // the remembered sort is per device: each shot starts at the default
     // The appearance (pnpm screenshot --appearance): stored like the go/help control does; none is System.
+    if (shot.dataSettingsFlipped) await browser.storage.local.set({ metricsEnabled: false, redirectLogEnabled: true });
+    else await browser.storage.local.remove(["metricsEnabled", "redirectLogEnabled"]);
     if (shot.appearance) await browser.storage.local.set({ appearance: shot.appearance });
     else await browser.storage.local.remove("appearance");
     document.body.style.margin = "0";
@@ -316,6 +319,67 @@ async function run(cmd) {
       .filter((k) => k.startsWith("redirectLog:"))
       .sort();
     return { keys, entries: keys.flatMap((k) => all[k]).filter((e) => !e.link.startsWith("zztest-")) };
+  }
+  if (cmd.op === "logon" || cmd.op === "logoff" || cmd.op === "metricson" || cmd.op === "metricsoff") {
+    // The per-device data settings, as the go/help checkboxes write them.
+    const key = cmd.op.startsWith("log") ? "redirectLogEnabled" : "metricsEnabled";
+    await browser.storage.local.set({ [key]: cmd.op.endsWith("on") });
+    if (cmd.op === "logoff")
+      await waitFor(
+        async () => !Object.keys(await browser.storage.local.get(null)).some((k) => k.startsWith("redirectLog:")),
+        "the log to be deleted",
+      );
+    return {};
+  }
+  if (cmd.op === "settings") {
+    // The two checkboxes of go/help: defaults, writes, live columns, the log's deletion.
+    await browser.storage.local.remove(["metricsEnabled", "redirectLogEnabled"]);
+    await browser.storage.local.set({ helpSort: { column: "hits", dir: "desc" } });
+    const doc = await loadForm();
+    await waitFor(() => doc.querySelector("#links tbody tr"), "link rows");
+    const metricsBox = doc.getElementById("metrics-enabled");
+    const logBox = doc.getElementById("log-enabled");
+    const local = () => browser.storage.local.get(null);
+    const shown = (sel) => [...doc.querySelectorAll(sel)].map((e) => getComputedStyle(e).display !== "none");
+    const columns = () => ({
+      headers: shown("#links thead th"),
+      cells: shown("#links tbody tr:first-child td"),
+      addVisible: doc.getElementById("add-btn").getBoundingClientRect().width > 0,
+    });
+    const out = {
+      labels: [metricsBox.labels[0].textContent, logBox.labels[0].textContent],
+      defaults: { metrics: metricsBox.checked, log: logBox.checked },
+      columnsOn: columns(),
+    };
+    const day = "redirectLog:2026-11-20";
+    await browser.storage.local.set({ [day]: [{ at: 1, from: "a", link: "x", to: "b", tabId: 1 }] });
+
+    logBox.click();
+    await waitFor(async () => (await local()).redirectLogEnabled === true, "the log setting");
+    out.logOn = (await local()).redirectLogEnabled;
+    out.logKeptWhenOn = day in (await local());
+
+    // A stored sort on a usage column is shown as the default while it is hidden, and is not overwritten.
+    metricsBox.click();
+    await waitFor(async () => (await local()).metricsEnabled === false, "the metrics setting");
+    await waitFor(() => !columns().headers[2], "the columns to hide");
+    out.metricsOff = (await local()).metricsEnabled;
+    out.columnsOff = columns();
+    out.sortWhileOff = [...doc.querySelectorAll("#links th[aria-sort]")].map((th) => th.textContent);
+    out.storedSortWhileOff = (await local()).helpSort;
+    // Another open go/help tab follows a change made elsewhere.
+    await browser.storage.local.set({ redirectLogEnabled: false });
+    await waitFor(() => !logBox.checked, "the second tab to follow");
+    out.logBoxFollows = logBox.checked;
+    await waitFor(async () => !(day in (await local())), "the log to be deleted");
+    out.logKeysAfterOff = Object.keys(await local()).filter((k) => k.startsWith("redirectLog:"));
+
+    metricsBox.click();
+    await waitFor(() => columns().headers[2], "the columns to show");
+    out.columnsBack = columns();
+    out.sortBack = [...doc.querySelectorAll("#links th[aria-sort]")].map((th) => th.textContent);
+    await browser.storage.local.remove("helpSort");
+    return out;
   }
   if (cmd.op === "logflood") {
     // 9,990 stored entries in today's key, then 20 overlapping appends: the

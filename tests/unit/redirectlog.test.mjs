@@ -2,7 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { COMMON, load } from "./lib/sandbox.mjs";
 
-const sb = () => load([...COMMON, "common/redirects.ts", "common/redirectlog.ts"]);
+const sb = () => {
+  const s = load([...COMMON, "common/redirects.ts", "common/redirectlog.ts"]);
+  s.fake.store.local.redirectLogEnabled = true; // the log is off by default
+  return s;
+};
 const plain = (v) => JSON.parse(JSON.stringify(v));
 const tick = () => new Promise((r) => setTimeout(r, 0));
 /** The whole stored log in order, or undefined when nothing is stored. */
@@ -198,7 +202,11 @@ test("appendRedirectLog: each entry lands in its UTC day key; readRedirectLog re
     ctx.en = e(at, i);
     await get(`appendRedirectLog(en, ${t + 100})`);
   }
-  assert.deepEqual(Object.keys(fake.store.local).sort(), ["redirectLog:2026-03-04", "redirectLog:2026-03-05"]);
+  assert.deepEqual(Object.keys(fake.store.local).sort(), [
+    "redirectLog:2026-03-04",
+    "redirectLog:2026-03-05",
+    "redirectLogEnabled",
+  ]);
   ctx.out = await get("readRedirectLog()");
   assert.deepEqual(plain(get("out").map((x) => x.tabId)), [0, 1, 2]);
 });
@@ -215,6 +223,7 @@ test("appendRedirectLog: expired day keys, also ones from an earlier run, are re
     "linkMetrics",
     "redirectLog:2026-03-18",
     "redirectLog:2026-03-20",
+    "redirectLogEnabled",
   ]);
   // Later writes read only the last days: a key far outside is removed by name.
   fake.store.local["redirectLog:2026-02-25"] = [e(now - 23 * DAY)];
@@ -223,7 +232,7 @@ test("appendRedirectLog: expired day keys, also ones from an earlier run, are re
   fake.api.storage.local.get = async (k) => (reads.push(k), realGet(k));
   ctx.en2 = e(now + 1);
   await get(`appendRedirectLog(en2, ${now + 1})`);
-  assert.ok(Array.isArray(reads[0]), "no full read after the first write");
+  assert.ok(Array.isArray(reads.find((k) => k !== "redirectLogEnabled")), "no full read after the first write");
   assert.equal(fake.store.local["redirectLog:2026-02-25"], undefined);
   assert.equal(logs.filter((l) => l[0] === "error").length, 0);
 });

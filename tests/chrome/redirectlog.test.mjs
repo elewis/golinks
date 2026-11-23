@@ -11,6 +11,7 @@ before(async () => {
   ext = await fx.chrome.newPage();
   await fx.chrome.navigate(ext, `${fx.chrome.origin}/index.html`);
   await fx.chrome.waitUrl(ext, (u) => u.endsWith("/index.html"));
+  await fx.chrome.evaluate(ext, `chrome.storage.local.set({ redirectLogEnabled: true })`); // off by default
 });
 after(() => fx?.stop());
 

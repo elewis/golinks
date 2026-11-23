@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { COMMON, load } from "./lib/sandbox.mjs";
 
 // The Firefox background script in the order its manifest lists the scripts.
-const sb = () =>
-  load([
+const sb = () => {
+  const s = load([
     ...COMMON,
     "common/redirects.ts",
     "common/metrics.ts",
@@ -12,6 +12,9 @@ const sb = () =>
     "firefox/search.ts",
     "firefox/background.ts",
   ]);
+  s.fake.store.local.redirectLogEnabled = true; // the log is off by default
+  return s;
+};
 
 test("manifest lists the scripts in the order the sandbox loads them", async () => {
   const { readFile } = await import("node:fs/promises");
@@ -43,7 +46,7 @@ test("the listener redirects a navigation without originUrl; the search becomes 
   // Nothing is logged by the interception itself.
   await new Promise((res) => setTimeout(res, 0));
   assert.deepEqual(
-    Object.keys(fake.store.local).filter((k) => k.startsWith("redirectLog")),
+    Object.keys(fake.store.local).filter((k) => k.startsWith("redirectLog:")),
     [],
   );
   // The go/ hop that follows logs one entry whose from is the search.
@@ -62,7 +65,7 @@ test("the listener leaves page-originated and non-go/ requests alone and logs no
   assert.equal(listener({ url: "https://github.com/golang/go/issues", tabId: 1 }), undefined);
   await new Promise((res) => setTimeout(res, 0));
   assert.deepEqual(
-    Object.keys(fake.store.local).filter((k) => k.startsWith("redirectLog")),
+    Object.keys(fake.store.local).filter((k) => k.startsWith("redirectLog:")),
     [],
   );
 });
@@ -90,7 +93,7 @@ test("a private-window search is still redirected, but nothing of it is stored",
   });
   await new Promise((res) => setTimeout(res, 0));
   assert.deepEqual(
-    Object.keys(fake.store.local).filter((k) => k.startsWith("redirectLog") || k === "linkMetrics"),
+    Object.keys(fake.store.local).filter((k) => k.startsWith("redirectLog:") || k === "linkMetrics"),
     [],
   );
 });

@@ -147,6 +147,27 @@
                             </div>
                             <div class="settings-row">
                                 <div class="settings-text">
+                                    <label class="settings-title" for="guide-check-on">Checkbox, on</label>
+                                    <div class="settings-desc"><code>checkbox</code> is a real <code>input type="checkbox"</code>; its name is a <code>label</code> (here the title). Tab to it for the focus ring.</div>
+                                </div>
+                                <input type="checkbox" class="checkbox" id="guide-check-on" checked>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-text">
+                                    <label class="settings-title" for="guide-check-off">Checkbox, off</label>
+                                    <div class="settings-desc">Unchecked: a plain box that takes the accent border on hover.</div>
+                                </div>
+                                <input type="checkbox" class="checkbox" id="guide-check-off">
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-text">
+                                    <label class="settings-title" for="guide-check-disabled">Checkbox, disabled</label>
+                                    <div class="settings-desc">Dimmed, no hover change.</div>
+                                </div>
+                                <input type="checkbox" class="checkbox" id="guide-check-disabled" checked disabled>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-text">
                                     <div class="settings-title">Destructive action</div>
                                     <div class="settings-desc"><code>segmented</code> holds toggle buttons (the chosen one has <code>aria-pressed="true"</code>); a destructive action uses <code>btn-danger</code>.</div>
                                 </div>

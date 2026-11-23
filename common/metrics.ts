@@ -127,6 +127,14 @@ function formatLastEdit(stat: LinkStat | undefined): string {
   return stat?.lastEdit === undefined ? "—" : formatTime(stat.lastEdit);
 }
 
+// The per-device setting "Usage metrics" (storage.local.metricsEnabled, not synced). Only the exact value false turns
+// recording off (hits and lastEdit); missing or anything else is on. Existing linkMetrics are kept while it is off.
+const METRICS_ENABLED_KEY = "metricsEnabled";
+
+function metricsEnabled(value: unknown): boolean {
+  return value !== false;
+}
+
 // Writes go through one promise chain: each task reads the store afresh, so a
 // burst of hits and edits loses nothing, and the listeners never wait for it.
 let metricsQueue: Promise<unknown> = Promise.resolve();
@@ -134,6 +142,8 @@ let metricsQueue: Promise<unknown> = Promise.resolve();
 function updateMetrics(change: (metrics: LinkMetrics) => LinkMetrics): Promise<unknown> {
   metricsQueue = metricsQueue
     .then(async () => {
+      // The setting is read inside the task, so a hit or edit queued before a switch to off is dropped when it runs.
+      if (!metricsEnabled((await api.storage.local.get(METRICS_ENABLED_KEY))[METRICS_ENABLED_KEY])) return;
       const { linkMetrics = {} }: { linkMetrics?: LinkMetrics } = await api.storage.local.get("linkMetrics");
       await api.storage.local.set({ linkMetrics: change(linkMetrics) });
     })

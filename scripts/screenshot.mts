@@ -35,6 +35,8 @@ interface Shot {
   noLinks?: boolean;
   // a window taller than the desktop one, to show a long page whole
   tall?: boolean;
+  // go/help with "Usage metrics" off (the usage columns hidden) and "Redirect log" on, the opposite of the defaults
+  dataSettingsFlipped?: boolean;
   // the stored appearance choice (none = System), set from --appearance
   appearance?: string;
 }
@@ -70,6 +72,7 @@ const NAMED: Record<string, Shot> = {
   "help-dialog": { label: "help-dialog", src: "index.html", click: "reset-btn" },
   // go/help in a tall window, to show the whole page (for docs/images/help.png, cropped).
   "help-full": { label: "help-full", src: "index.html", tall: true },
+  "help-metrics-off": { label: "help-metrics-off", src: "index.html", dataSettingsFlipped: true },
   "help-sorted": { label: "help-sorted", src: "index.html", sortBy: "Hits" },
   overwrite: {
     label: "overwrite",
@@ -260,6 +263,11 @@ async function shootChrome(shots: Shot[]): Promise<void> {
           : `chrome.storage.local.remove("appearance")`,
       );
       await ev(`chrome.storage.local.remove("helpSort")`);
+      await ev(
+        shot.dataSettingsFlipped
+          ? `chrome.storage.local.set({ metricsEnabled: false, redirectLogEnabled: true })`
+          : `chrome.storage.local.remove(["metricsEnabled", "redirectLogEnabled"])`,
+      );
       await open(shot.src);
       await ev(`(() => {
         for (const [id, value] of Object.entries(${JSON.stringify(shot.fill ?? {})})) {
@@ -305,7 +313,7 @@ if (at >= 0) {
 const args = argv.filter((a, i) => a !== "--dark" && a !== "--appearance" && !(at >= 0 && i === at + 1));
 if (args.includes("--help") || args.includes("-h")) {
   console.log(
-    "usage: pnpm screenshot [firefox|chrome|both] [page ...] [--dark] [--appearance light|dark|system]\npages: popup, not-found, help, help-full, help-sorted, help-full, help-dialog, popup-saved, overwrite, help-empty, help-error, help-overwrite, styleguide, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
+    "usage: pnpm screenshot [firefox|chrome|both] [page ...] [--dark] [--appearance light|dark|system]\npages: popup, not-found, help, help-full, help-sorted, help-metrics-off, help-full, help-dialog, popup-saved, overwrite, help-empty, help-error, help-overwrite, styleguide, or an extension page path such as notfound.html?name=x\ndefault: both browsers; popup, not-found, help",
   );
   process.exit(0);
 }

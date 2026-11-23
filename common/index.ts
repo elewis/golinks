@@ -7,6 +7,9 @@
   // The sort of the table, remembered per device (storage.local, not synced).
   const { helpSort }: { helpSort?: unknown } = await api.storage.local.get("helpSort");
   let sort: Sort = validSort(helpSort);
+  // The two data settings of this device (storage.local); see metricsEnabled() and redirectLogEnabled().
+  const settings = await api.storage.local.get([METRICS_ENABLED_KEY, REDIRECT_LOG_ENABLED_KEY]);
+  let metricsOn = metricsEnabled(settings[METRICS_ENABLED_KEY]);
 
   // An element the page is known to have (see index.html).
   function byId<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -69,13 +72,14 @@
     for (const [column, text] of COLUMN_LABELS) {
       const th = document.createElement("th");
       if (column === "hits") th.className = "num";
+      if (column === "hits" || column === "lastHit" || column === "lastEdit") th.classList.add("metric");
       if (column) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "sort-btn";
         button.textContent = text;
         button.addEventListener("click", () => {
-          sort = nextSort(sort, column);
+          sort = nextSort(shownSort(), column);
           api.storage.local.set({ helpSort: sort }).catch(() => {});
           populateLinks(shownLinks);
         });
@@ -90,20 +94,28 @@
   function showSort(): void {
     for (const [column, button] of sortButtons) {
       const th = button.parentElement as HTMLElement;
-      if (column === sort.column) th.setAttribute("aria-sort", sort.dir === "asc" ? "ascending" : "descending");
+      if (column === shownSort().column) th.setAttribute("aria-sort", sort.dir === "asc" ? "ascending" : "descending");
       else th.removeAttribute("aria-sort");
     }
+  }
+
+  // The sort in use: the stored one, except that a sort on a hidden column shows as the default (the stored value stays).
+  function shownSort(): Sort {
+    return effectiveSort(sort, metricsOn);
   }
 
   // The usage cells of a link: hits, last hit, last edited.
   function statCells(golink: string): HTMLTableCellElement[] {
     const stat = metrics[golink.toLowerCase()];
-    return [cell(formatHits(stat), "num"), cell(formatLastHit(stat), "dim"), cell(formatLastEdit(stat), "dim")];
+    const cells = [cell(formatHits(stat), "num"), cell(formatLastHit(stat), "dim"), cell(formatLastEdit(stat), "dim")];
+    for (const c of cells) c.classList.add("metric");
+    return cells;
   }
 
   const linksTable = byId<HTMLTableElement>("links");
   linksTable.createTHead().appendChild(headerRow());
   const linksBody = linksTable.createTBody();
+  linksTable.classList.toggle("no-metrics", !metricsOn);
 
   function populateLinks(links: Links): void {
     shownLinks = links;
@@ -112,7 +124,7 @@
     table.innerHTML = "";
     showSort();
 
-    for (const golink of sortedNames(links, metrics, sort)) {
+    for (const golink of sortedNames(links, metrics, shownSort())) {
       const destination = links[golink] ?? "";
       const row = document.createElement("tr");
       row.appendChild(golinkCell(golink));
@@ -222,6 +234,57 @@
   });
 
   initLinkForm(byId("add-link"), {}, linksTable);
+
+  // The form's rows are made for six columns (the add button spans the three usage columns and the delete one).
+  // With the usage columns hidden there are three: the URL box takes the delete column too, and the button gets
+  // a row of its own under the boxes.
+  const [controlsRow, messagesRow] = Array.from(linksTable.tFoot?.rows ?? []);
+  const [, urlCell, buttonCell] = Array.from(controlsRow.cells);
+  const addButton = byId("add-btn");
+  const buttonRow = document.createElement("tr");
+  const buttonRowCell = buttonRow.insertCell();
+  buttonRowCell.colSpan = 3;
+  function layoutForm(): void {
+    urlCell.colSpan = metricsOn ? 1 : 2;
+    buttonCell.hidden = !metricsOn;
+    messagesRow.cells[0].colSpan = metricsOn ? 6 : 3;
+    if (metricsOn) {
+      buttonRow.remove();
+      buttonCell.append(addButton);
+    } else {
+      buttonRowCell.append(addButton);
+      controlsRow.after(buttonRow);
+    }
+  }
+  layoutForm();
+
+  // The data settings: two checkboxes (metrics default on, log default off), kept in step with storage.local.
+  const metricsBox = byId<HTMLInputElement>("metrics-enabled");
+  const logBox = byId<HTMLInputElement>("log-enabled");
+  metricsBox.checked = metricsOn;
+  logBox.checked = redirectLogEnabled(settings[REDIRECT_LOG_ENABLED_KEY]);
+  for (const [box, key] of [
+    [metricsBox, METRICS_ENABLED_KEY],
+    [logBox, REDIRECT_LOG_ENABLED_KEY],
+  ] as const)
+    box.addEventListener("change", () => {
+      byId("settings-error").textContent = "";
+      api.storage.local.set({ [key]: box.checked }).catch((e) => {
+        byId("settings-error").textContent = `Could not save: ${e instanceof Error ? e.message : e}`;
+      });
+    });
+  api.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace !== "local") return;
+    if (changes[REDIRECT_LOG_ENABLED_KEY])
+      logBox.checked = redirectLogEnabled(changes[REDIRECT_LOG_ENABLED_KEY].newValue);
+    if (changes[METRICS_ENABLED_KEY]) {
+      metricsOn = metricsEnabled(changes[METRICS_ENABLED_KEY].newValue);
+      metricsBox.checked = metricsOn;
+      linksTable.classList.toggle("no-metrics", !metricsOn);
+      layoutForm();
+      populateLinks(shownLinks);
+    }
+  });
   // The shared form (and deletes from other pages) change the stored links.
   api.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === "sync" && linkChanges(changes)) readLinks().then(populateLinks, () => {});

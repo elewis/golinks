@@ -152,13 +152,40 @@ async function readRedirectLog(): Promise<RedirectLogEntry[]> {
     .flatMap((key) => days[key]);
 }
 
+// The per-device setting "Redirect log" (storage.local.redirectLogEnabled, not synced). Only the exact value true
+// turns the log on; missing or anything else is off. While it is off nothing is appended and the stored log is deleted.
+const REDIRECT_LOG_ENABLED_KEY = "redirectLogEnabled";
+
+function redirectLogEnabled(value: unknown): boolean {
+  return value === true;
+}
+
+async function readRedirectLogEnabled(): Promise<boolean> {
+  return redirectLogEnabled((await api.storage.local.get(REDIRECT_LOG_ENABLED_KEY))[REDIRECT_LOG_ENABLED_KEY]);
+}
+
 // Writes are serialised on one promise chain so a burst loses nothing and a
-// failure does not block the next write. The listener does not wait.
+// failure does not block the next write. The listener does not wait. The
+// delete of a switched-off log runs on the same chain, so a write in flight
+// cannot bring a day key back after it.
 let redirectLogQueue: Promise<unknown> = Promise.resolve();
+
+// Deletes every redirectLog:* key unless the log is on (the setting is read when the task runs).
+function deleteRedirectLogIfOff(): Promise<unknown> {
+  redirectLogQueue = redirectLogQueue
+    .then(async () => {
+      if (await readRedirectLogEnabled()) return;
+      const days = await readRedirectDays(null);
+      if (Object.keys(days).length > 0) await api.storage.local.remove(Object.keys(days));
+    })
+    .catch((e) => console.error("GoLinks: deleting the redirect log failed:", e));
+  return redirectLogQueue;
+}
 
 function appendRedirectLog(entry: RedirectLogEntry, now: number = Math.floor(Date.now() / 1000)): Promise<unknown> {
   redirectLogQueue = redirectLogQueue
     .then(async () => {
+      if (!(await readRedirectLogEnabled())) return;
       const window = redirectWindowKeys(now);
       const days = await readRedirectDays(redirectLogSwept ? window.read : null);
       const plan = planRedirectWrite(days, entry, now);
@@ -177,17 +204,23 @@ function startRedirectLog(): void {
     const entry = logEntryFor(fact, api.runtime.getURL(""));
     if (entry) appendRedirectLog(entry);
   });
+  // A log that is off (the default) leaves nothing behind: at start, and whenever the setting changes.
+  deleteRedirectLogIfOff();
+  api.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === "local" && changes[REDIRECT_LOG_ENABLED_KEY]) deleteRedirectLogIfOff();
+  });
 }
 
 // Clearing per-device data: the storage.local keys to remove among the stored
 // ones. Always `linkMetrics` and every redirect log day; with `settings` (the
-// factory reset) also the per-device settings `helpSort` and `appearance` (back to System). `deviceId` (identity) always stays.
+// factory reset) also the per-device settings `helpSort`, `appearance` (back to System), `metricsEnabled` (on) and `redirectLogEnabled` (off). `deviceId` (identity) always stays.
+// The per-device settings the factory reset removes (metricsEnabled is metrics.ts's METRICS_ENABLED_KEY, not needed here).
+const PER_DEVICE_SETTINGS = ["helpSort", "appearance", "metricsEnabled", REDIRECT_LOG_ENABLED_KEY];
+
 function metricsKeysToClear(stored: Record<string, unknown>, settings = false): string[] {
   return Object.keys(stored).filter(
     (key) =>
-      key === "linkMetrics" ||
-      key.startsWith(REDIRECT_LOG_PREFIX) ||
-      (settings && (key === "helpSort" || key === "appearance")),
+      key === "linkMetrics" || key.startsWith(REDIRECT_LOG_PREFIX) || (settings && PER_DEVICE_SETTINGS.includes(key)),
   );
 }
 

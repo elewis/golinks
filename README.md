@@ -12,7 +12,8 @@ Add and manage your own links entirely offline, and sync them between your logge
 - **Parameterized links**: a `%s` in the URL is replaced with whatever follows the name (`go/cs/example` → `https://github.com/search?q=example`).
 - **Browser sync**: links and edits follow you across all logged-in devices using in-browser sync.
 - **No dependencies**: uses native browser APIs only, no network calls. Works fully offline.
-- **Usage statistics**: records hit counts on each device to track your usage. No data is shared.
+- **Usage statistics**: records hit counts on each device to track your usage. No data is shared. On by default; untick **Usage metrics** under Settings on go/help to stop counting (the Hits, Last hit and Last edited columns are then hidden, and the numbers already counted are kept until you clear them).
+- **Redirect log** (off by default): tick **Redirect log** under Settings on go/help to keep a 7-day log of your go/ navigations on this device. Unticking it deletes the log.
 
 ## Getting Started
 
@@ -63,6 +64,10 @@ Add new custom links one of three ways:
 Link names are case insensitive, and may use letters, numbers, `-`, and `_` (no spaces, or other special characters).
 
 ![Toolbar popup](docs/images/popup.png) ![Not-found page](docs/images/not-found.png)
+
+## Privacy
+
+Your links stay in your browser (and sync through your browser account, if you use sync). The extension sends nothing anywhere. See [PRIVACY.md](PRIVACY.md) for what is stored and why each permission is needed.
 
 ## Development
 
