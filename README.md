@@ -103,3 +103,7 @@ golinks/
 ├── tests/           # unit, build, browser and loader tests
 └── CLAUDE.md        # Detailed technical documentation
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
